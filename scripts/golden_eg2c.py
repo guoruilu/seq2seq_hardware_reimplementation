@@ -864,21 +864,50 @@ def gen_dw_reuse(build_dir: Path) -> None:
                 expected.append(sat_int8(acc))
 
     simple_cycles = in_h * in_w * channels * k_h * k_w
-    cir_cycles = (simple_cycles + 2) // 3
-    drir_cycles = (simple_cycles + 1) // 2
+    cir_cycles = in_h * in_w * channels * k_w
+    drir_pair_count = (in_w + 1) // 2
+    drir_cycles = in_h * channels * k_h * k_w * drir_pair_count
+
+    active_products = 0
+    for oy in range(in_h):
+        for ox in range(in_w):
+            for ch in range(channels):
+                for ky in range(k_h):
+                    for kx in range(k_w):
+                        iy = oy + ky - pad_h
+                        ix = ox + kx - pad_w
+                        if 0 <= iy < in_h and 0 <= ix < in_w:
+                            active_products += 1
+
+    simple_active_slots = active_products
+    cir_active_slots = active_products
+    drir_active_slots = active_products
+    simple_idle_slots = simple_cycles - simple_active_slots
+    cir_idle_slots = cir_cycles * k_h - cir_active_slots
+    drir_idle_slots = drir_cycles * 2 - drir_active_slots
 
     build_dir.mkdir(parents=True, exist_ok=True)
     write_hex(build_dir / "input_act.hex", input_act)
     write_hex(build_dir / "weights.hex", weights)
     write_hex(build_dir / "expected.hex", expected)
-    (build_dir / "expected_stats.hex").write_text(
-        f"{simple_cycles:08x}\n{cir_cycles:08x}\n{drir_cycles:08x}\n",
-        encoding="ascii",
+    write_hex32(
+        build_dir / "expected_stats.hex",
+        [
+            simple_cycles,
+            cir_cycles,
+            drir_cycles,
+            simple_active_slots,
+            cir_active_slots,
+            drir_active_slots,
+            simple_idle_slots,
+            cir_idle_slots,
+            drir_idle_slots,
+        ],
     )
 
     target = {
         "target": "dw_reuse",
-        "operation": "depthwise_conv2d_reuse_schedule_model",
+        "operation": "depthwise_conv2d_reuse_lane_assignment_schedule",
         "shape": {
             "input": {"h": in_h, "w": in_w, "c": channels},
             "kernel": {"h": k_h, "w": k_w},
@@ -901,10 +930,19 @@ def gen_dw_reuse(build_dir: Path) -> None:
             "activation_function": "linear",
         },
         "schedule_model": {
+            "mode": "parallel RTL instances for simple, CIR, and D-RIR",
             "simple_cycles": simple_cycles,
             "cir_cycles": cir_cycles,
             "drir_cycles": drir_cycles,
-            "note": "Architecture-level utilization trend only; not an ASIC cycle-accurate claim.",
+            "simple_active_slots": simple_active_slots,
+            "cir_active_slots": cir_active_slots,
+            "drir_active_slots": drir_active_slots,
+            "simple_idle_slots": simple_idle_slots,
+            "cir_idle_slots": cir_idle_slots,
+            "drir_idle_slots": drir_idle_slots,
+            "cir_lane_mapping": "one input activation position and one kernel column feed K_H output-row lanes",
+            "drir_lane_mapping": "one output row/kernel term feeds two adjacent output-column lanes",
+            "note": "Architecture-level lane-assignment schedule; not an ASIC cycle-accurate claim.",
         },
     }
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")

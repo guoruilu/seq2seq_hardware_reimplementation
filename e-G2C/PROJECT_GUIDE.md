@@ -84,7 +84,7 @@ Planned RTL files:
 | `rtl/eg2c_output_act_buffer.v` | Collects and writes output activations |
 | `rtl/eg2c_dense_conv2d.v` | Normal convolution schedule with dense mode and optional sparse weight-vector skipping |
 | `rtl/eg2c_dw_conv2d.v` | Baseline depth-wise convolution schedule |
-| `rtl/eg2c_dw_reuse_conv2d.v` | DW output-equivalent CIR/D-RIR counter model; true lane-assignment scheduling remains future work |
+| `rtl/eg2c_dw_reuse_conv2d.v` | DW simple/CIR/D-RIR lane-assignment scheduler with cycle and lane-utilization counters |
 | `rtl/eg2c_pw_conv2d.v` | Point-wise convolution schedule with dense mode and optional sparse weight-vector skipping |
 | `rtl/eg2c_detector_branch.v` | Signed detector threshold comparison and coarse/precise path selection |
 | `rtl/eg2c_sparse_selector.v` | Vector-wise sparse activation selection |
@@ -150,7 +150,7 @@ The milestone order is:
 | Sparse vector MAC | `./sim/run_sim.sh sparse` |
 | Sparse normal conv | `./sim/run_sim.sh conv_sparse` |
 | Sparse point-wise conv | `./sim/run_sim.sh pw_sparse` |
-| DW reuse modes | `./sim/run_sim.sh dw_reuse` |
+| DW reuse lane schedules | `./sim/run_sim.sh dw_reuse` |
 | Threshold adaptation | `./sim/run_sim.sh adapt` |
 | Integrated toy system | `./sim/run_sim.sh top` |
 

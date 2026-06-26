@@ -41,7 +41,7 @@ Standard files:
 | `expected_path.bin` | Python generator | branch testbench | one binary path bit per branch case; `1` means precise/abnormal |
 | `vector_valid.bin` | Python generator | sparse schedule testbenches | one binary validity bit per sparse vector |
 | `expected_status.hex` | Python generator | `pipeline_dense` testbench | repeated per case: `expected_error`, `expected_ops`, `expected_cycles` |
-| `expected_stats.hex` | Python generator | sparse and schedule-counter testbenches | sparse MAC order: `dense_accumulator`, `active_sparse_cycles`, `skipped_vectors`, `dense_equivalent_cycles`, `total_sparse_cycles`; sparse conv/PW order: `dense_equivalent_cycles`, `active_sparse_cycles`, `skipped_vectors`, `total_sparse_cycles`; DW reuse order: `simple_cycles`, `cir_cycles`, `drir_cycles` |
+| `expected_stats.hex` | Python generator | sparse and schedule-counter testbenches | sparse MAC order: `dense_accumulator`, `active_sparse_cycles`, `skipped_vectors`, `dense_equivalent_cycles`, `total_sparse_cycles`; sparse conv/PW order: `dense_equivalent_cycles`, `active_sparse_cycles`, `skipped_vectors`, `total_sparse_cycles`; DW reuse order: `simple_cycles`, `cir_cycles`, `drir_cycles`, `simple_active_slots`, `cir_active_slots`, `drir_active_slots`, `simple_idle_slots`, `cir_idle_slots`, `drir_idle_slots` |
 | `target.json` | Python generator | Python golden, RTL testbench documentation | target shape/layout/padding/stride/arithmetic assumptions |
 | `adapt_target.json` | Python generator | adaptation golden and testbench documentation | threshold interval boundaries, score format, counter width, update window |
 | `expected.hex` | Python golden | testbench checker | one signed output activation per line; first baseline uses 8-bit two's-complement hex; branch target stores the vector selected by `expected_path.bin` |
@@ -80,7 +80,7 @@ Milestones are intentionally small. Do not skip ahead to a full pipeline before 
 | M5 | `./sim/run_sim.sh sparse` | vector-wise sparse MAC model matches dense dot-product output and reports skipped work |
 | M5A | `./sim/run_sim.sh conv_sparse` | normal convolution schedule skips all-zero sparse weight vectors while matching dense output |
 | M5B | `./sim/run_sim.sh pw_sparse` | point-wise convolution schedule skips all-zero sparse weight vectors while matching dense output |
-| M6 | `./sim/run_sim.sh dw_reuse` | DW output-equivalent reuse counter model prints simple/CIR/D-RIR utilization counters |
+| M6 | `./sim/run_sim.sh dw_reuse` | DW simple/CIR/D-RIR lane-assignment schedules match the same golden output and print utilization counters |
 | M7 | `./sim/run_sim.sh adapt` | threshold adaptation engine matches Python golden |
 | M8 | `./sim/run_sim.sh top` | integrated e-G2C toy system passes normal and abnormal scenarios |
 
@@ -329,31 +329,30 @@ Acceptance:
 ## Phase 7 -- Depth-Wise Conv Reuse Modes
 
 Goal:
-- Add an architecture-level CIR and D-RIR utilization model for depth-wise convolution.
-- Keep exact lane-assignment scheduling as explicit follow-up work.
+- Add architecture-level simple, CIR, and D-RIR lane-assignment schedules for depth-wise convolution.
+- Verify output equivalence against the simple dense DW golden output.
 
 Paper behavior:
 - CIR maps one input activation row to three MAC lanes for three output rows.
 - D-RIR splits one input row into two sub-rows and maps them to two MAC lanes.
 
 Tasks:
-- Keep the simple DW Conv as a reference path.
-- Add a first output-equivalent DW reuse counter model.
-- Later: add `dw_mode`:
-  - `simple`;
-  - `cir`;
-  - `d_rir`.
-- Implement scheduling counters.
-- Later: implement lane assignment.
-- Track utilization counters.
+- Keep the simple DW Conv target as a baseline reference.
+- Implement explicit lane-assignment schedules:
+  - `simple`: one output/kernel term lane per cycle;
+  - `cir`: one input activation position and one kernel column feed `K_H` output-row lanes;
+  - `d_rir`: one output row/kernel term feeds two adjacent output-column lanes.
+- Run the three schedules in the `dw_reuse` wrapper and expose simple/CIR/D-RIR outputs.
+- Track cycle, active-lane, and idle-lane counters for each mode.
 
 Verification:
-- Same input/weights through simple DW reference output.
-- Simple output must match Python golden.
-- Simple/CIR/D-RIR counter model should show the intended trend.
+- Same input/weights through simple, CIR, and D-RIR DW schedules.
+- All three output tensors must match Python golden.
+- Simple/CIR/D-RIR counters must match generated expected stats.
+- CIR and D-RIR cycle counts must be lower than the simple schedule on the generated target.
 
 Acceptance:
-- `./sim/run_sim.sh dw_reuse` reports PASS and prints cycle counts.
+- `./sim/run_sim.sh dw_reuse` reports PASS and prints cycle, active-lane, and idle-lane counts.
 
 ## Phase 8 -- Threshold Adaptation Engine
 
@@ -455,4 +454,4 @@ The first integration milestone is:
 
 It currently runs compact dense toy programs, including CONV -> POOL -> DONE, DONE-only, NOP-prefixed, and illegal-opcode cases, without sparse optimization. Detector/coarse/precise top-level sequencing is reserved for the later `top` target.
 
-Sparse mode and the DW reuse counter model were added after the dense pipeline milestone. Sparse weight-vector skipping is now integrated into the standalone normal-conv and point-wise-conv schedulers; wiring those sparse schedules into the future integrated top-level pipeline and implementing true DW lane scheduling remain future work.
+Sparse mode and the DW reuse lane scheduler were added after the dense pipeline milestone. Sparse weight-vector skipping is now integrated into the standalone normal-conv and point-wise-conv schedulers. DW simple/CIR/D-RIR lane-assignment schedules now run in the standalone `dw_reuse` target. Wiring sparse and DW reuse schedules into the future integrated top-level pipeline remains future work.

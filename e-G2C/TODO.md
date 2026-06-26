@@ -44,8 +44,8 @@
 - [x] Add detector branch to coarse/precise path.
 - [x] Add architecture-level vector-wise sparse selector/MAC model.
 - [x] Integrate vector-wise sparse mode into normal/PW conv schedules.
-- [x] Add DW Conv CIR/D-RIR output-equivalent counter model.
-- [ ] Implement true DW `simple`/`cir`/`d_rir` lane-assignment scheduler.
+- [x] Add DW Conv CIR/D-RIR reuse counter baseline.
+- [x] Implement true DW `simple`/`cir`/`d_rir` lane-assignment scheduler.
 - [ ] Add threshold adaptation engine.
 - [ ] Add top-level integrated toy system regression: `./sim/run_sim.sh top`.
 

@@ -25,12 +25,20 @@ module tb_dw_reuse;
     wire [31:0] simple_cycles;
     wire [31:0] cir_cycles;
     wire [31:0] drir_cycles;
-    wire [OUTPUT_COUNT*DATA_W-1:0] output_flat;
+    wire [31:0] simple_active_lanes;
+    wire [31:0] cir_active_lanes;
+    wire [31:0] drir_active_lanes;
+    wire [31:0] simple_idle_lanes;
+    wire [31:0] cir_idle_lanes;
+    wire [31:0] drir_idle_lanes;
+    wire [OUTPUT_COUNT*DATA_W-1:0] simple_output_flat;
+    wire [OUTPUT_COUNT*DATA_W-1:0] cir_output_flat;
+    wire [OUTPUT_COUNT*DATA_W-1:0] drir_output_flat;
 
     reg [DATA_W-1:0] input_mem [0:INPUT_COUNT-1];
     reg [WEIGHT_W-1:0] weight_mem [0:WEIGHT_COUNT-1];
     reg [DATA_W-1:0] expected_mem [0:OUTPUT_COUNT-1];
-    reg [31:0] expected_stats [0:2];
+    reg [31:0] expected_stats [0:8];
     reg [INPUT_COUNT*DATA_W-1:0] input_flat;
     reg [WEIGHT_COUNT*WEIGHT_W-1:0] weight_flat;
 
@@ -54,12 +62,20 @@ module tb_dw_reuse;
         .start_i(start),
         .input_act_i(input_flat),
         .weight_i(weight_flat),
-        .output_act_o(output_flat),
+        .output_act_o(simple_output_flat),
+        .cir_output_act_o(cir_output_flat),
+        .drir_output_act_o(drir_output_flat),
         .busy_o(busy),
         .done_o(done),
         .simple_cycle_count_o(simple_cycles),
         .cir_cycle_count_o(cir_cycles),
-        .drir_cycle_count_o(drir_cycles)
+        .drir_cycle_count_o(drir_cycles),
+        .simple_active_lane_count_o(simple_active_lanes),
+        .cir_active_lane_count_o(cir_active_lanes),
+        .drir_active_lane_count_o(drir_active_lanes),
+        .simple_idle_lane_count_o(simple_idle_lanes),
+        .cir_idle_lane_count_o(cir_idle_lanes),
+        .drir_idle_lane_count_o(drir_idle_lanes)
     );
 
     initial begin
@@ -107,7 +123,7 @@ module tb_dw_reuse;
             end
         end
 
-        for (idx = 0; idx < 3; idx = idx + 1) begin
+        for (idx = 0; idx < 9; idx = idx + 1) begin
             if (^expected_stats[idx] === 1'bx) begin
                 $display("ERROR: expected_stats[%0d] has X/Z after load", idx);
                 mismatches = mismatches + 1;
@@ -143,10 +159,22 @@ module tb_dw_reuse;
         end
 
         for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
-            got = output_flat[idx*DATA_W +: DATA_W];
+            got = simple_output_flat[idx*DATA_W +: DATA_W];
             expected = expected_mem[idx];
             if (got !== expected) begin
-                $display("ERROR: output[%0d] got=%02x expected=%02x", idx, got, expected);
+                $display("ERROR: simple_output[%0d] got=%02x expected=%02x", idx, got, expected);
+                mismatches = mismatches + 1;
+            end
+
+            got = cir_output_flat[idx*DATA_W +: DATA_W];
+            if (got !== expected) begin
+                $display("ERROR: cir_output[%0d] got=%02x expected=%02x", idx, got, expected);
+                mismatches = mismatches + 1;
+            end
+
+            got = drir_output_flat[idx*DATA_W +: DATA_W];
+            if (got !== expected) begin
+                $display("ERROR: drir_output[%0d] got=%02x expected=%02x", idx, got, expected);
                 mismatches = mismatches + 1;
             end
         end
@@ -166,14 +194,50 @@ module tb_dw_reuse;
             mismatches = mismatches + 1;
         end
 
+        if (simple_active_lanes !== expected_stats[3]) begin
+            $display("ERROR: simple_active_lanes got=%0d expected=%0d", simple_active_lanes, expected_stats[3]);
+            mismatches = mismatches + 1;
+        end
+
+        if (cir_active_lanes !== expected_stats[4]) begin
+            $display("ERROR: cir_active_lanes got=%0d expected=%0d", cir_active_lanes, expected_stats[4]);
+            mismatches = mismatches + 1;
+        end
+
+        if (drir_active_lanes !== expected_stats[5]) begin
+            $display("ERROR: drir_active_lanes got=%0d expected=%0d", drir_active_lanes, expected_stats[5]);
+            mismatches = mismatches + 1;
+        end
+
+        if (simple_idle_lanes !== expected_stats[6]) begin
+            $display("ERROR: simple_idle_lanes got=%0d expected=%0d", simple_idle_lanes, expected_stats[6]);
+            mismatches = mismatches + 1;
+        end
+
+        if (cir_idle_lanes !== expected_stats[7]) begin
+            $display("ERROR: cir_idle_lanes got=%0d expected=%0d", cir_idle_lanes, expected_stats[7]);
+            mismatches = mismatches + 1;
+        end
+
+        if (drir_idle_lanes !== expected_stats[8]) begin
+            $display("ERROR: drir_idle_lanes got=%0d expected=%0d", drir_idle_lanes, expected_stats[8]);
+            mismatches = mismatches + 1;
+        end
+
         if (!(cir_cycles < simple_cycles && drir_cycles < simple_cycles)) begin
             $display("ERROR: reuse counters did not improve over simple schedule");
             mismatches = mismatches + 1;
         end
 
+        if (!(simple_active_lanes == cir_active_lanes && cir_active_lanes == drir_active_lanes)) begin
+            $display("ERROR: active lane counts disagree across DW reuse modes");
+            mismatches = mismatches + 1;
+        end
+
         if (mismatches == 0) begin
-            $display("target=dw_reuse mismatches=0 PASS simple=%0d cir=%0d drir=%0d",
-                     simple_cycles, cir_cycles, drir_cycles);
+            $display("target=dw_reuse mismatches=0 PASS simple=%0d cir=%0d drir=%0d active=%0d idle=%0d/%0d/%0d",
+                     simple_cycles, cir_cycles, drir_cycles, simple_active_lanes,
+                     simple_idle_lanes, cir_idle_lanes, drir_idle_lanes);
             $finish;
         end else begin
             $display("target=dw_reuse mismatches=%0d FAIL", mismatches);

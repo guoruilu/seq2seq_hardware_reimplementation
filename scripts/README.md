@@ -43,6 +43,6 @@ Target-specific field order:
 | `expected_status.hex` | `pipeline_dense` | repeated per case: `expected_error`, `expected_ops`, `expected_cycles` |
 | `expected_stats.hex` | `sparse` | `dense_accumulator`, `active_sparse_cycles`, `skipped_vectors`, `dense_equivalent_cycles`, `total_sparse_cycles` |
 | `expected_stats.hex` | `conv_sparse`, `pw_sparse` | `dense_equivalent_cycles`, `active_sparse_cycles`, `skipped_vectors`, `total_sparse_cycles` |
-| `expected_stats.hex` | `dw_reuse` | `simple_cycles`, `cir_cycles`, `drir_cycles` |
+| `expected_stats.hex` | `dw_reuse` | `simple_cycles`, `cir_cycles`, `drir_cycles`, `simple_active_slots`, `cir_active_slots`, `drir_active_slots`, `simple_idle_slots`, `cir_idle_slots`, `drir_idle_slots` |
 
 For `branch`, `expected.hex` is the selected output vector after applying `expected_path.bin` to choose each case's `coarse.hex` or `precise.hex` vector.

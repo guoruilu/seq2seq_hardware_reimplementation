@@ -40,7 +40,7 @@
 
 ## P3 -- e-G2C Features
 
-- [ ] Add detector branch to coarse/precise path.
+- [x] Add detector branch to coarse/precise path.
 - [ ] Add vector-wise sparse normal/PW conv mode.
 - [ ] Add DW Conv CIR and D-RIR scheduling modes.
 - [ ] Add threshold adaptation engine.

@@ -18,6 +18,7 @@ Targets:
   pool     Verify average pooling against Python golden output
   pipeline_dense
            Verify instruction-driven CONV -> POOL dense toy pipeline
+  branch   Verify detector threshold branch between coarse and precise paths
 
 Options:
   wave     Also write sim/build/<target>/wave.vcd when supported
@@ -51,6 +52,9 @@ case "$target" in
     pipeline_dense)
         tb_file="$root_dir/tb/tb_pipeline_dense.v"
         ;;
+    branch)
+        tb_file="$root_dir/tb/tb_branch.v"
+        ;;
     *)
         echo "Unknown target: $target" >&2
         usage >&2
@@ -68,7 +72,7 @@ build_dir="$root_dir/sim/build/$target"
 mkdir -p "$build_dir"
 
 case "$target" in
-    conv|dw|pw|pool|pipeline_dense)
+    conv|dw|pw|pool|pipeline_dense|branch)
         python3 "$root_dir/scripts/golden_eg2c.py" "$target" --build-dir "$build_dir"
         ;;
 esac
@@ -87,6 +91,7 @@ rtl_files=(
     "$root_dir/rtl/eg2c_pw_conv2d.v"
     "$root_dir/rtl/eg2c_avg_pool2d.v"
     "$root_dir/rtl/eg2c_dense_pipeline.v"
+    "$root_dir/rtl/eg2c_detector_branch.v"
     "$root_dir/rtl/eg2c_controller.v"
     "$root_dir/rtl/eg2c_top.v"
 )

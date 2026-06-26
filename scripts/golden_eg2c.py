@@ -394,9 +394,62 @@ def gen_pipeline_dense(build_dir: Path) -> None:
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
 
+def gen_branch(build_dir: Path) -> None:
+    out_count = 8
+    cases = [
+        {"score": 10, "threshold": 20},
+        {"score": 33, "threshold": 20},
+        {"score": -4, "threshold": -4},
+    ]
+    coarse: list[int] = []
+    precise: list[int] = []
+    expected: list[int] = []
+    expected_path: list[int] = []
+
+    for case_idx, case in enumerate(cases):
+        case_coarse = [((case_idx * 17 + elem * 3 + 1) % 31) - 15 for elem in range(out_count)]
+        case_precise = [((case_idx * 19 + elem * 5 + 4) % 37) - 18 for elem in range(out_count)]
+        abnormal = int(case["score"] >= case["threshold"])
+        coarse.extend(case_coarse)
+        precise.extend(case_precise)
+        expected.extend(case_precise if abnormal else case_coarse)
+        expected_path.append(abnormal)
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "scores.hex", [case["score"] for case in cases])
+    write_hex(build_dir / "thresholds.hex", [case["threshold"] for case in cases])
+    write_hex(build_dir / "coarse.hex", coarse)
+    write_hex(build_dir / "precise.hex", precise)
+    write_hex(build_dir / "expected.hex", expected)
+    (build_dir / "expected_path.bin").write_text("".join(f"{bit:b}\n" for bit in expected_path), encoding="ascii")
+
+    target = {
+        "target": "branch",
+        "operation": "detector_threshold_branch",
+        "rule": "score >= threshold selects precise/abnormal path; otherwise coarse/normal path",
+        "case_count": len(cases),
+        "output_count": out_count,
+        "arithmetic": {
+            "score": "signed int8 two's-complement",
+            "threshold": "signed int8 two's-complement",
+            "comparison": "signed greater-than-or-equal",
+        },
+        "cases": [
+            {
+                "case": idx,
+                "score": case["score"],
+                "threshold": case["threshold"],
+                "expected_path": "precise" if expected_path[idx] else "coarse",
+            }
+            for idx, case in enumerate(cases)
+        ],
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", choices=["conv", "dw", "pw", "pool", "pipeline_dense"])
+    parser.add_argument("target", choices=["conv", "dw", "pw", "pool", "pipeline_dense", "branch"])
     parser.add_argument("--build-dir", required=True, type=Path)
     args = parser.parse_args()
 
@@ -410,6 +463,8 @@ def main() -> None:
         gen_pool(args.build_dir)
     elif args.target == "pipeline_dense":
         gen_pipeline_dense(args.build_dir)
+    elif args.target == "branch":
+        gen_branch(args.build_dir)
 
 
 if __name__ == "__main__":

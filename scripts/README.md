@@ -12,6 +12,7 @@ Current executable flow:
 ./sim/run_sim.sh pw
 ./sim/run_sim.sh pool
 ./sim/run_sim.sh pipeline_dense
+./sim/run_sim.sh branch
 ```
 
 `golden_eg2c.py` writes deterministic `sim/build/<target>/` artifacts:

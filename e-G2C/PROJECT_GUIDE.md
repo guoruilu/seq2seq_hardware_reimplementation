@@ -85,6 +85,7 @@ Planned RTL files:
 | `rtl/eg2c_dense_conv2d.v` | Baseline normal convolution schedule |
 | `rtl/eg2c_dw_conv2d.v` | Baseline depth-wise convolution schedule |
 | `rtl/eg2c_pw_conv2d.v` | Baseline point-wise convolution schedule |
+| `rtl/eg2c_detector_branch.v` | Signed detector threshold comparison and coarse/precise path selection |
 | `rtl/eg2c_sparse_selector.v` | Vector-wise sparse activation selection |
 | `rtl/eg2c_adapt_engine.v` | Histogram, argmin, threshold update |
 | `rtl/eg2c_controller.v` | Instruction decode and layer scheduling |

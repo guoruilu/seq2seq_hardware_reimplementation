@@ -17,6 +17,7 @@ implemented_targets=(
     conv_sparse
     pw_sparse
     dw_reuse
+    adapt
 )
 
 usage() {
@@ -40,6 +41,7 @@ Targets:
   pw_sparse
            Verify sparse-weight vector skipping inside point-wise-conv scheduling
   dw_reuse Verify DW simple/CIR/D-RIR lane schedules and counters
+  adapt   Verify threshold adaptation histogram, argmin, and update flow
 
 Options:
   wave, --wave
@@ -107,6 +109,9 @@ case "$target" in
     dw_reuse)
         tb_file="$root_dir/tb/tb_dw_reuse.v"
         ;;
+    adapt)
+        tb_file="$root_dir/tb/tb_adapt.v"
+        ;;
     *)
         echo "Unknown target: $target" >&2
         usage >&2
@@ -120,7 +125,7 @@ mkdir -p "$build_dir"
 cd "$root_dir"
 
 case "$target" in
-    conv|dw|pw|pool|pipeline_dense|branch|sparse|conv_sparse|pw_sparse|dw_reuse)
+    conv|dw|pw|pool|pipeline_dense|branch|adapt|sparse|conv_sparse|pw_sparse|dw_reuse)
         python3 "$root_dir/scripts/golden_eg2c.py" "$target" --build-dir "$build_dir"
         python3 "$root_dir/scripts/validate_manifest.py" "$build_dir"
         ;;
@@ -141,6 +146,7 @@ rtl_files=(
     "$root_dir/rtl/eg2c_avg_pool2d.v"
     "$root_dir/rtl/eg2c_dense_pipeline.v"
     "$root_dir/rtl/eg2c_detector_branch.v"
+    "$root_dir/rtl/eg2c_adapt_engine.v"
     "$root_dir/rtl/eg2c_sparse_selector.v"
     "$root_dir/rtl/eg2c_sparse_vector_mac.v"
     "$root_dir/rtl/eg2c_dw_reuse_conv2d.v"

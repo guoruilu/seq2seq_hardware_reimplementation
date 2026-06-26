@@ -89,7 +89,7 @@ Planned RTL files:
 | `rtl/eg2c_detector_branch.v` | Signed detector threshold comparison and coarse/precise path selection |
 | `rtl/eg2c_sparse_selector.v` | Vector-wise sparse activation selection |
 | `rtl/eg2c_sparse_vector_mac.v` | Architecture-level sparse vector MAC with active/skip counters |
-| `rtl/eg2c_adapt_engine.v` | Planned histogram, argmin, threshold update module |
+| `rtl/eg2c_adapt_engine.v` | Threshold adaptation histogram, lower-index argmin tie-break, threshold midpoint update, and counter reset |
 | `rtl/eg2c_controller.v` | Current smoke/top-shell instruction walker with invalid-opcode and instruction-bound error reporting; operation-specific dense scheduling is in `eg2c_dense_pipeline.v` |
 | `rtl/eg2c_top.v` | Current memory/controller smoke shell; full integrated toy top remains future work |
 
@@ -131,7 +131,7 @@ Each stage gets a small test before integration:
 | Sparse Normal Conv | Python golden for dense-equivalent output plus active/skip counters |
 | Sparse PW Conv | Python golden for dense-equivalent output plus active/skip counters |
 | Sparse selector | compressed vector result equals dense result |
-| Adaptation engine | histogram and argmin produce expected threshold |
+| Adaptation engine | histogram, ignored out-of-range samples, argmin, threshold update, and restart behavior match Python golden |
 | Top pipeline | toy detector chooses coarse/precise path correctly |
 
 The pass condition is always printed by the testbench as a mismatch count.
@@ -152,8 +152,8 @@ The milestone order is:
 | Sparse normal conv | `./sim/run_sim.sh conv_sparse` |
 | Sparse point-wise conv | `./sim/run_sim.sh pw_sparse` |
 | DW reuse lane schedules | `./sim/run_sim.sh dw_reuse` |
+| Threshold adaptation | `./sim/run_sim.sh adapt` |
 | Full implemented regression | `./sim/run_sim.sh all` |
-| Threshold adaptation | planned: `./sim/run_sim.sh adapt` |
 | Integrated toy system | planned: `./sim/run_sim.sh top` |
 
 Generated test data goes under `sim/build/<target>/`. Hex file formats and PASS/FAIL rules are defined in `IMPLEMENTATION_PLAN.md`.

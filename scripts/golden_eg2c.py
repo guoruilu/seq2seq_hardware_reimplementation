@@ -835,6 +835,131 @@ def gen_branch(build_dir: Path) -> None:
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
 
+def _adapt_interval_for_score(score: int, boundaries: list[int]) -> int | None:
+    for idx in range(len(boundaries) - 1):
+        lower = boundaries[idx]
+        upper = boundaries[idx + 1]
+        if idx == len(boundaries) - 2:
+            if lower <= score <= upper:
+                return idx
+        elif lower <= score < upper:
+            return idx
+    return None
+
+
+def _adapt_midpoint(lower: int, upper: int) -> int:
+    total = lower + upper
+    if total >= 0:
+        return total // 2
+    return -((-total) // 2)
+
+
+def gen_adapt(build_dir: Path) -> None:
+    interval_count = 8
+    counter_width = 16
+    boundaries = [-64, -48, -32, -16, 0, 16, 32, 48, 64]
+    cases = [
+        {
+            "name": "boundary_tie_low_index",
+            "initial_threshold": 7,
+            "scores": [
+                -65,
+                -64, -63, -49,
+                -48, -47, -33,
+                -32,
+                -16, -15, -1,
+                0,
+                16, 17, 31,
+                32, 33, 47,
+                48, 49, 50, 64,
+                65,
+            ],
+        },
+        {
+            "name": "restart_unique_empty_interval",
+            "initial_threshold": -12,
+            "scores": [-64, -48, -32, -16, 0, 16, 48, 64, 65],
+        },
+    ]
+
+    flat_scores: list[int] = []
+    case_lengths: list[int] = []
+    initial_thresholds: list[int] = []
+    expected_histogram: list[int] = []
+    expected_stats: list[int] = []
+    case_summaries = []
+
+    for case_idx, case in enumerate(cases):
+        histogram = [0 for _ in range(interval_count)]
+        ignored = 0
+        scores = case["scores"]
+        for score in scores:
+            interval = _adapt_interval_for_score(score, boundaries)
+            if interval is None:
+                ignored += 1
+            else:
+                histogram[interval] += 1
+
+        min_count = min(histogram)
+        selected_interval = next(idx for idx, count in enumerate(histogram) if count == min_count)
+        threshold = _adapt_midpoint(boundaries[selected_interval], boundaries[selected_interval + 1])
+        accepted = sum(histogram)
+
+        flat_scores.extend(scores)
+        case_lengths.append(len(scores))
+        initial_thresholds.append(case["initial_threshold"])
+        expected_histogram.extend(histogram)
+        expected_stats.extend([threshold, selected_interval, accepted, ignored, len(scores)])
+        case_summaries.append(
+            {
+                "case": case_idx,
+                "name": case["name"],
+                "initial_threshold": case["initial_threshold"],
+                "score_count": len(scores),
+                "accepted_samples": accepted,
+                "ignored_samples": ignored,
+                "histogram": histogram,
+                "selected_interval": selected_interval,
+                "updated_threshold": threshold,
+            }
+        )
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "scores.hex", flat_scores)
+    write_hex(build_dir / "boundaries.hex", boundaries)
+    write_hex(build_dir / "initial_thresholds.hex", initial_thresholds)
+    write_hex32(build_dir / "case_lengths.hex", case_lengths)
+    write_hex32(build_dir / "expected_histogram.hex", expected_histogram)
+    write_hex32(build_dir / "expected_stats.hex", expected_stats)
+
+    target = {
+        "target": "adapt",
+        "operation": "threshold_adaptation",
+        "case_count": len(cases),
+        "interval_count": interval_count,
+        "counter_width": counter_width,
+        "score_format": "signed int8 two's-complement",
+        "threshold_format": "signed int8 two's-complement",
+        "interval_rule": "lower bound inclusive, upper bound exclusive, except the last interval includes its upper bound",
+        "out_of_range_rule": "scores outside the sensitive range are ignored by histogram counters",
+        "argmin_tie_rule": "select the lowest interval index among equal minimum counters",
+        "midpoint_rule": "integer midpoint truncating toward zero",
+        "sensitive_range": {"min": boundaries[0], "max": boundaries[-1]},
+        "boundaries": boundaries,
+        "stats_hex_fields_per_case": [
+            "updated_threshold",
+            "selected_interval",
+            "accepted_samples",
+            "ignored_samples",
+            "total_samples",
+        ],
+        "cases": case_summaries,
+    }
+    encoded = json.dumps(target, indent=2) + "\n"
+    (build_dir / "target.json").write_text(encoded, encoding="ascii")
+    (build_dir / "adapt_target.json").write_text(encoded, encoding="ascii")
+
+
 def gen_sparse(build_dir: Path) -> None:
     act_count = 16
     vec_count = 5
@@ -1100,6 +1225,7 @@ def main() -> None:
             "pool",
             "pipeline_dense",
             "branch",
+            "adapt",
             "sparse",
             "conv_sparse",
             "pw_sparse",
@@ -1121,6 +1247,8 @@ def main() -> None:
         gen_pipeline_dense(args.build_dir)
     elif args.target == "branch":
         gen_branch(args.build_dir)
+    elif args.target == "adapt":
+        gen_adapt(args.build_dir)
     elif args.target == "sparse":
         gen_sparse(args.build_dir)
     elif args.target == "conv_sparse":

@@ -168,11 +168,11 @@ Paper flow:
 2. Use argmin to find the least-occurrence interval.
 3. Update the threshold and reset histogram counters.
 
-Architecture-level RTL plan:
-- `eg2c_threshold_cmp.v`: compares detector output with the current threshold.
-- `eg2c_histogram.v`: increments interval counters.
-- `eg2c_argmin.v`: finds the smallest counter.
-- `eg2c_adapt_engine.v`: owns threshold registers and update control.
+Architecture-level RTL status:
+- `eg2c_detector_branch.v` compares detector output with the current threshold for coarse/precise path selection.
+- `eg2c_adapt_engine.v` implements the Fig. 6 adaptation loop as one standalone simulation module: interval comparison, histogram counters, lower-index argmin tie-break, threshold midpoint update, and counter reset after update.
+- The `adapt` target verifies generated signed 8-bit score windows, ignored out-of-range samples, pre-reset histogram snapshots, selected intervals, updated thresholds, and restart behavior.
+- The test uses generated interval boundaries for the paper's sensitive range concept; the paper does not publish exact numeric boundaries.
 
 ## 8. Known Missing Details
 

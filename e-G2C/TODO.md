@@ -46,7 +46,7 @@
 - [x] Integrate vector-wise sparse mode into normal/PW conv schedules.
 - [x] Add DW Conv CIR/D-RIR reuse counter baseline.
 - [x] Implement true DW `simple`/`cir`/`d_rir` lane-assignment scheduler.
-- [ ] Add threshold adaptation engine.
+- [x] Add threshold adaptation engine.
 - [ ] Add top-level integrated toy system regression: `./sim/run_sim.sh top`.
 
 ## P4 -- Cleanup

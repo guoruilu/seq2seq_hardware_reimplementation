@@ -27,7 +27,7 @@ Current executable flow:
 |---|---|
 | `input_act.hex` | activation-based targets |
 | `weights.hex` | convolution, sparse, and DW reuse targets |
-| `expected.hex` | all golden-checked targets |
+| `expected.hex` | activation-producing golden targets; `adapt` uses `expected_histogram.hex` and `expected_stats.hex` instead |
 | `target.json` | all generated targets |
 | `adapt_target.json` | `adapt` |
 | `manifest.json` | generated target integrity checks before simulation |

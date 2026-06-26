@@ -30,14 +30,21 @@ module eg2c_adapt_engine #(
     localparam integer STATE_RUN  = 2'd1;
 
     reg [1:0] state_q;
+    reg start_d_q;
 
     integer classify_idx;
     integer argmin_idx;
     integer selected_idx;
     reg [COUNTER_W-1:0] selected_count;
     reg [COUNTER_W-1:0] score_interval_count;
+    reg [COUNTER_W-1:0] score_interval_count_next;
+    reg [INTERVAL_COUNT*COUNTER_W-1:0] histogram_after_score;
+    reg [31:0] sample_count_after_score;
+    reg [31:0] ignored_count_after_score;
     reg score_in_range;
     reg [7:0] score_interval;
+
+    wire start_pulse = start_i && !start_d_q;
 
     initial begin
         if (DATA_W != 8) begin
@@ -101,24 +108,42 @@ module eg2c_adapt_engine #(
         end
     end
 
-    always @(histogram_o) begin
+    always @(histogram_after_score) begin
         selected_idx = 0;
-        selected_count = get_hist(histogram_o, 0);
+        selected_count = get_hist(histogram_after_score, 0);
         for (argmin_idx = 1; argmin_idx < INTERVAL_COUNT; argmin_idx = argmin_idx + 1) begin
-            if (get_hist(histogram_o, argmin_idx) < selected_count) begin
+            if (get_hist(histogram_after_score, argmin_idx) < selected_count) begin
                 selected_idx = argmin_idx;
-                selected_count = get_hist(histogram_o, argmin_idx);
+                selected_count = get_hist(histogram_after_score, argmin_idx);
             end
         end
     end
 
-    always @(score_interval or histogram_o) begin
+    always @(score_interval or histogram_o or score_in_range or score_valid_i or
+             sample_count_o or ignored_sample_count_o) begin
         score_interval_count = get_hist(histogram_o, score_interval);
+        score_interval_count_next = score_interval_count;
+        histogram_after_score = histogram_o;
+        sample_count_after_score = sample_count_o;
+        ignored_count_after_score = ignored_sample_count_o;
+
+        if (score_valid_i) begin
+            sample_count_after_score = sample_count_o + 32'd1;
+            if (score_in_range) begin
+                if (score_interval_count != {COUNTER_W{1'b1}}) begin
+                    score_interval_count_next = score_interval_count + {{(COUNTER_W-1){1'b0}}, 1'b1};
+                end
+                histogram_after_score[score_interval*COUNTER_W +: COUNTER_W] = score_interval_count_next;
+            end else begin
+                ignored_count_after_score = ignored_sample_count_o + 32'd1;
+            end
+        end
     end
 
     always @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             state_q                <= STATE_IDLE;
+            start_d_q              <= 1'b0;
             threshold_o            <= {DATA_W{1'b0}};
             busy_o                 <= 1'b0;
             done_o                 <= 1'b0;
@@ -128,12 +153,13 @@ module eg2c_adapt_engine #(
             histogram_o            <= {INTERVAL_COUNT*COUNTER_W{1'b0}};
             histogram_snapshot_o   <= {INTERVAL_COUNT*COUNTER_W{1'b0}};
         end else begin
+            start_d_q <= start_i;
             done_o <= 1'b0;
 
             case (state_q)
                 STATE_IDLE: begin
                     busy_o <= 1'b0;
-                    if (start_i) begin
+                    if (start_pulse) begin
                         threshold_o            <= initial_threshold_i;
                         sample_count_o         <= 32'd0;
                         ignored_sample_count_o <= 32'd0;
@@ -149,19 +175,17 @@ module eg2c_adapt_engine #(
                     if (update_i) begin
                         selected_interval_o <= selected_idx[7:0];
                         threshold_o         <= interval_midpoint(selected_idx);
-                        histogram_snapshot_o <= histogram_o;
+                        sample_count_o       <= sample_count_after_score;
+                        ignored_sample_count_o <= ignored_count_after_score;
+                        histogram_snapshot_o <= histogram_after_score;
                         histogram_o          <= {INTERVAL_COUNT*COUNTER_W{1'b0}};
                         busy_o  <= 1'b0;
                         done_o  <= 1'b1;
                         state_q <= STATE_IDLE;
                     end else if (score_valid_i) begin
-                        sample_count_o <= sample_count_o + 32'd1;
-                        if (score_in_range) begin
-                            histogram_o[score_interval*COUNTER_W +: COUNTER_W] <=
-                                score_interval_count + {{(COUNTER_W-1){1'b0}}, 1'b1};
-                        end else begin
-                            ignored_sample_count_o <= ignored_sample_count_o + 32'd1;
-                        end
+                        sample_count_o         <= sample_count_after_score;
+                        ignored_sample_count_o <= ignored_count_after_score;
+                        histogram_o            <= histogram_after_score;
                     end
                 end
 

@@ -113,3 +113,28 @@ Fix:
 Prevention:
 - Multi-engine wrappers should own the transaction handshake and should never pass raw level-sensitive starts to children with different latencies.
 - Stress tests should include held-start or repeated-start cases for any wrapper that coordinates multiple child engines.
+
+## #007 -- Adaptation engine accepted ambiguous control edges
+
+Symptoms:
+- Independent RTL/test review found that a held `start_i` could restart the adaptation engine immediately after `done_o`, clearing the updated threshold and histogram snapshot.
+- If `update_i` and `score_valid_i` arrived in the same cycle, the final detector score could be dropped from the histogram before argmin.
+- Histogram counters incremented with natural wraparound when full.
+- The first adaptation testbench used truthy checks for `busy`/`done`, so X/Z control values could be missed.
+
+Root cause:
+- `eg2c_adapt_engine` accepted level-sensitive starts in `STATE_IDLE`.
+- The RUN state prioritized update over score ingestion.
+- Counter increment logic did not define overflow behavior.
+- The testbench checked control signals with logical negation instead of case equality and did not stress held-start or same-cycle update/sample behavior.
+
+Fix:
+- Added rising-edge start acceptance while idle.
+- Changed update to use the post-sample histogram when `update_i` and `score_valid_i` are asserted together.
+- Changed histogram counters to saturate at their maximum value.
+- Extended `tb_adapt` with case-equality control checks, one-cycle `done_o` checking, held-start stress, same-cycle update/sample coverage, and a small-width saturation DUT.
+
+Prevention:
+- Every control-oriented testbench should use case equality for one-bit status checks.
+- Every start/done handshake should include held-start or repeated-start stress.
+- Counter modules should document and test overflow behavior before integration.

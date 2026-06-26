@@ -878,7 +878,7 @@ def gen_adapt(build_dir: Path) -> None:
         {
             "name": "restart_unique_empty_interval",
             "initial_threshold": -12,
-            "scores": [-64, -48, -32, -16, 0, 16, 48, 64, 65],
+            "scores": [-64, -48, -32, -16, 0, 16, 48, 65, 64],
         },
     ]
 
@@ -944,6 +944,9 @@ def gen_adapt(build_dir: Path) -> None:
         "out_of_range_rule": "scores outside the sensitive range are ignored by histogram counters",
         "argmin_tie_rule": "select the lowest interval index among equal minimum counters",
         "midpoint_rule": "integer midpoint truncating toward zero",
+        "start_rule": "start is accepted only on a rising edge while the engine is idle",
+        "update_score_valid_rule": "if update and score_valid are asserted together, the score is counted before argmin and snapshot",
+        "counter_overflow_rule": "histogram counters saturate at their maximum value instead of wrapping",
         "sensitive_range": {"min": boundaries[0], "max": boundaries[-1]},
         "boundaries": boundaries,
         "stats_hex_fields_per_case": [

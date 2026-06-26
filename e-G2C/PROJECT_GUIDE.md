@@ -24,7 +24,7 @@ Code directories are currently at the repository root:
 | `scripts/` | Python generators and golden references |
 | `e-G2C/` | Paper PDF, e-G2C-specific documents, and extracted paper assets |
 
-So `rtl/eg2c_top.v` means `/mnt/e/prjs/Vib2ECG_hardware/reimplementation/rtl/eg2c_top.v`, not `e-G2C/rtl/eg2c_top.v`.
+So `rtl/eg2c_top.v` means `/mnt/e/prjs/vib2ecg_hardware/reimplementation/rtl/eg2c_top.v`, not `e-G2C/rtl/eg2c_top.v`.
 
 ## 2. Kitchen Analogy
 
@@ -89,7 +89,7 @@ Planned RTL files:
 | `rtl/eg2c_detector_branch.v` | Signed detector threshold comparison and coarse/precise path selection |
 | `rtl/eg2c_sparse_selector.v` | Vector-wise sparse activation selection |
 | `rtl/eg2c_sparse_vector_mac.v` | Architecture-level sparse vector MAC with active/skip counters |
-| `rtl/eg2c_adapt_engine.v` | Threshold adaptation histogram, lower-index argmin tie-break, threshold midpoint update, and counter reset |
+| `rtl/eg2c_adapt_engine.v` | Threshold adaptation histogram, lower-index argmin tie-break, threshold midpoint update, saturating counters, and counter reset |
 | `rtl/eg2c_controller.v` | Current smoke/top-shell instruction walker with invalid-opcode and instruction-bound error reporting; operation-specific dense scheduling is in `eg2c_dense_pipeline.v` |
 | `rtl/eg2c_top.v` | Current memory/controller smoke shell; full integrated toy top remains future work |
 
@@ -131,7 +131,7 @@ Each stage gets a small test before integration:
 | Sparse Normal Conv | Python golden for dense-equivalent output plus active/skip counters |
 | Sparse PW Conv | Python golden for dense-equivalent output plus active/skip counters |
 | Sparse selector | compressed vector result equals dense result |
-| Adaptation engine | histogram, ignored out-of-range samples, argmin, threshold update, and restart behavior match Python golden |
+| Adaptation engine | histogram, ignored out-of-range samples, argmin, threshold update, held-start behavior, update/sample coincidence, saturation, and restart behavior match Python golden/test expectations |
 | Top pipeline | toy detector chooses coarse/precise path correctly |
 
 The pass condition is always printed by the testbench as a mismatch count.

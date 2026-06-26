@@ -170,8 +170,8 @@ Paper flow:
 
 Architecture-level RTL status:
 - `eg2c_detector_branch.v` compares detector output with the current threshold for coarse/precise path selection.
-- `eg2c_adapt_engine.v` implements the Fig. 6 adaptation loop as one standalone simulation module: interval comparison, histogram counters, lower-index argmin tie-break, threshold midpoint update, and counter reset after update.
-- The `adapt` target verifies generated signed 8-bit score windows, ignored out-of-range samples, pre-reset histogram snapshots, selected intervals, updated thresholds, and restart behavior.
+- `eg2c_adapt_engine.v` implements the Fig. 6 adaptation loop as one standalone simulation module: interval comparison, saturating histogram counters, lower-index argmin tie-break, threshold midpoint update, and counter reset after update.
+- The `adapt` target verifies generated signed 8-bit score windows, ignored out-of-range samples, pre-reset histogram snapshots, selected intervals, updated thresholds, held-start behavior, update/sample coincidence, saturation, and restart behavior.
 - The test uses generated interval boundaries for the paper's sensitive range concept; the paper does not publish exact numeric boundaries.
 
 ## 8. Known Missing Details

@@ -15,13 +15,14 @@
 
 ## P1 -- Skeleton And Arithmetic Milestones
 
-- [ ] Create `rtl/`, `tb/`, `sim/`, and `scripts/`.
-- [ ] Add `eg2c_defines.vh`.
-- [ ] Implement behavioral memories.
-- [ ] Implement pass-through `eg2c_input_act_buffer.v` and `eg2c_output_act_buffer.v`.
-- [ ] Implement MAC lane and MAC array.
-- [ ] Add `sim/run_sim.sh` with `smoke`, `mac`, and `wave` support.
-- [ ] Run `./sim/run_sim.sh smoke`.
+- [x] Create `rtl/`, `tb/`, `sim/`, and `scripts/`.
+- [x] Add `eg2c_defines.vh`.
+- [x] Implement behavioral memories.
+- [x] Implement pass-through `eg2c_input_act_buffer.v` and `eg2c_output_act_buffer.v`.
+- [x] Implement MAC lane and MAC array.
+- [x] Add `sim/run_sim.sh` with `smoke` and `wave` support.
+- [x] Run `./sim/run_sim.sh smoke`.
+- [ ] Add `mac` target to `sim/run_sim.sh`.
 - [ ] Run `./sim/run_sim.sh mac`.
 
 ## P2 -- Dense Operation Baseline

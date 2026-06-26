@@ -87,6 +87,7 @@ Planned RTL files:
 | `rtl/eg2c_pw_conv2d.v` | Baseline point-wise convolution schedule |
 | `rtl/eg2c_detector_branch.v` | Signed detector threshold comparison and coarse/precise path selection |
 | `rtl/eg2c_sparse_selector.v` | Vector-wise sparse activation selection |
+| `rtl/eg2c_sparse_vector_mac.v` | Architecture-level sparse vector MAC with active/skip counters |
 | `rtl/eg2c_adapt_engine.v` | Histogram, argmin, threshold update |
 | `rtl/eg2c_controller.v` | Instruction decode and layer scheduling |
 | `rtl/eg2c_top.v` | Wires memories, NN engine, adaptation engine, and controller |

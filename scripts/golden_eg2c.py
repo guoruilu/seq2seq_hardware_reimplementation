@@ -447,9 +447,86 @@ def gen_branch(build_dir: Path) -> None:
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
 
+def gen_sparse(build_dir: Path) -> None:
+    act_count = 16
+    vec_count = 5
+    vec_len = 3
+
+    input_act = [((idx * 9 + 4) % 25) - 12 for idx in range(act_count)]
+    indices = [
+        0, 3, 7,
+        0, 0, 0,
+        2, 5, 11,
+        1, 4, 8,
+        0, 0, 0,
+    ]
+    weights = [
+        3, -2, 4,
+        0, 0, 0,
+        -5, 2, 1,
+        6, -3, 2,
+        0, 0, 0,
+    ]
+    vector_valid = [1, 0, 1, 1, 0]
+
+    dense_acc = 0
+    active_cycles = 0
+    skipped_vectors = 0
+    for vec in range(vec_count):
+        if not vector_valid[vec]:
+            skipped_vectors += 1
+            continue
+        for elem in range(vec_len):
+            flat = vec * vec_len + elem
+            dense_acc += input_act[indices[flat]] * weights[flat]
+            active_cycles += 1
+
+    dense_cycles = vec_count * vec_len
+    output = sat_int8(dense_acc)
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "input_act.hex", input_act)
+    (build_dir / "indices.hex").write_text("".join(f"{idx:04x}\n" for idx in indices), encoding="ascii")
+    write_hex(build_dir / "weights.hex", weights)
+    (build_dir / "vector_valid.bin").write_text("".join(f"{bit:b}\n" for bit in vector_valid), encoding="ascii")
+    write_hex(build_dir / "expected.hex", [output])
+    stats = [dense_acc & 0xFFFFFFFF, active_cycles, skipped_vectors, dense_cycles]
+    (build_dir / "expected_stats.hex").write_text("".join(f"{value:08x}\n" for value in stats), encoding="ascii")
+
+    target = {
+        "target": "sparse",
+        "operation": "vector_wise_sparse_mac",
+        "shape": {
+            "activation_count": act_count,
+            "vector_count": vec_count,
+            "vector_length": vec_len,
+        },
+        "layout": {
+            "activation": "flat int8 activation vector",
+            "indices": "vector-major sparse indices, one uint16 per sparse element",
+            "weights": "vector-major signed int8 sparse weights",
+            "vector_valid": "one bit per sparse vector; invalid vectors model skipped all-zero vectors",
+        },
+        "arithmetic": {
+            "activation": "signed int8 two's-complement",
+            "weight": "signed int8 two's-complement",
+            "accumulator": "signed int32",
+            "output": "signed int8 saturated from accumulator",
+        },
+        "reference": {
+            "dense_accumulator": dense_acc,
+            "expected_output": output,
+            "active_sparse_cycles": active_cycles,
+            "dense_equivalent_cycles": dense_cycles,
+            "skipped_vectors": skipped_vectors,
+        },
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", choices=["conv", "dw", "pw", "pool", "pipeline_dense", "branch"])
+    parser.add_argument("target", choices=["conv", "dw", "pw", "pool", "pipeline_dense", "branch", "sparse"])
     parser.add_argument("--build-dir", required=True, type=Path)
     args = parser.parse_args()
 
@@ -465,6 +542,8 @@ def main() -> None:
         gen_pipeline_dense(args.build_dir)
     elif args.target == "branch":
         gen_branch(args.build_dir)
+    elif args.target == "sparse":
+        gen_sparse(args.build_dir)
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@ Standard files:
 | `instr.hex` | Python generator | instruction SRAM loader | one 32-bit instruction per line, big-endian human-readable hex |
 | `ctx.hex` | Python generator | optional context memory loader | one context word per line; width documented in the target README/header |
 | `scores.hex` / `thresholds.hex` | Python generator | branch and top testbenches | signed 8-bit detector score and threshold values |
-| `scores.hex` / `boundaries.hex` / `initial_thresholds.hex` | Python generator | adaptation testbench | signed 8-bit detector scores, interval boundaries, and per-window initial thresholds |
+| `scores.hex` / `boundaries.hex` / `initial_thresholds.hex` | Python generator | adaptation and top testbenches | signed 8-bit detector scores, interval boundaries, and per-window initial thresholds; top uses `boundaries.hex` with its per-case adaptation controls |
 | `case_lengths.hex` | Python generator | adaptation testbench | one 32-bit score-window length per adaptation case |
 | `coarse.hex` / `precise.hex` | Python generator | branch testbench | one signed 8-bit output vector entry per line for coarse and precise candidate paths |
 | `coarse_weights.hex` / `precise_weights.hex` | Python generator | top testbench | one signed 8-bit converter weight per line for the top coarse and precise paths |
@@ -484,7 +484,7 @@ The first integration milestone is:
 ./sim/run_sim.sh pipeline_dense
 ```
 
-It currently runs compact dense toy programs, including CONV -> POOL -> DONE, DONE-only, NOP-prefixed, and illegal-opcode cases, without sparse optimization.
+It currently runs compact dense toy programs, including CONV -> POOL -> DONE, DONE-only, NOP-prefixed, illegal-opcode, and POOL-before-CONV dependency-error cases, without sparse optimization.
 
 The top integration milestone is:
 
@@ -492,4 +492,4 @@ The top integration milestone is:
 ./sim/run_sim.sh top
 ```
 
-It runs generated normal/coarse, abnormal/precise-with-adaptation, and abnormal/precise-illegal-opcode scenarios through `eg2c_integrated_top`. Sparse mode, the DW reuse lane scheduler, and threshold adaptation were added after the dense pipeline milestone. Sparse weight-vector skipping is integrated into standalone normal-conv and point-wise-conv schedulers; DW simple/CIR/D-RIR lane-assignment schedules run in `dw_reuse`; the Fig. 6 adaptation loop runs in both standalone `adapt` and integrated `top` form.
+It runs generated normal/coarse, abnormal/precise-with-adaptation, abnormal/precise illegal-opcode, normal/coarse illegal-opcode, and invalid-adaptation-length scenarios through `eg2c_integrated_top`. Sparse mode, the DW reuse lane scheduler, and threshold adaptation were added after the dense pipeline milestone. Sparse weight-vector skipping is integrated into standalone normal-conv and point-wise-conv schedulers; DW simple/CIR/D-RIR lane-assignment schedules run in `dw_reuse`; the Fig. 6 adaptation loop runs in both standalone `adapt` and integrated `top` form.

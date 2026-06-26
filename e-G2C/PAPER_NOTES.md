@@ -192,7 +192,7 @@ Use this table whenever the implementation needs a detail that is not explicit i
 |---|---|---|---|
 | Code directory layout | Paper does not discuss repository layout | RTL, testbenches, scripts, and simulation runner live at repo root; e-G2C documents and extracted paper assets live under `e-G2C/` | User requested e-G2C docs under `e-G2C/`; code path chosen for this repository |
 | Activation numeric format | Fig. 8 says 8-bit activation | First dense baseline uses signed 8-bit two's-complement activations | Paper fact for width; signedness chosen for simulation |
-| Weight numeric format | Fig. 2/8 mention 4-bit power-of-2 and 8-bit int weights | First dense baseline uses signed 8-bit weights; 4-bit packed mode is delayed until sparse/weight-format phase | Paper fact for available formats; staged implementation choice |
+| Weight numeric format | Fig. 2/8 mention 4-bit power-of-2 and 8-bit int weights | Current simulation uses signed 8-bit weights; 4-bit packed/power-of-2 weight mode remains future weight-format work | Paper fact for available formats; staged implementation choice |
 | Output numeric format | Fig. 8 says 8-/16-bit output | First dense baseline writes signed saturated 8-bit activations | Paper permits 8-bit output; 16-bit can be added later |
 | Accumulator width | Paper does not give internal accumulator width | Use signed 32-bit accumulator in first baseline | Conservative simulation choice |
 | Tensor layout | Paper figures show tensor blocks but no memory flattening order | Use NHWC activation layout and `kh, kw, cin, cout` normal-conv weight layout for generated tests | Must be frozen before Phase 3 |

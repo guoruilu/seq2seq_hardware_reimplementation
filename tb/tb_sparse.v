@@ -28,7 +28,7 @@ module tb_sparse;
     reg [INDEX_W-1:0] index_mem [0:INDEX_COUNT-1];
     reg [WEIGHT_W-1:0] weight_mem [0:INDEX_COUNT-1];
     reg valid_mem [0:VEC_COUNT-1];
-    reg [31:0] expected_stats [0:3];
+    reg [31:0] expected_stats [0:4];
     reg [DATA_W-1:0] expected_mem [0:0];
 
     reg [ACT_COUNT*DATA_W-1:0] act_flat;
@@ -90,6 +90,39 @@ module tb_sparse;
         $readmemh("sim/build/sparse/expected_stats.hex", expected_stats);
 
         for (idx = 0; idx < ACT_COUNT; idx = idx + 1) begin
+            if (^act_mem[idx] === 1'bx) begin
+                $display("ERROR: sparse input_act[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < INDEX_COUNT; idx = idx + 1) begin
+            if (^index_mem[idx] === 1'bx || ^weight_mem[idx] === 1'bx) begin
+                $display("ERROR: sparse index/weight[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < VEC_COUNT; idx = idx + 1) begin
+            if (valid_mem[idx] === 1'bx) begin
+                $display("ERROR: sparse vector_valid[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        if (^expected_mem[0] === 1'bx) begin
+            $display("ERROR: sparse expected output has X/Z after load");
+            mismatches = mismatches + 1;
+        end
+
+        for (idx = 0; idx < 5; idx = idx + 1) begin
+            if (^expected_stats[idx] === 1'bx) begin
+                $display("ERROR: sparse expected_stats[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < ACT_COUNT; idx = idx + 1) begin
             act_flat[idx*DATA_W +: DATA_W] = act_mem[idx];
         end
 
@@ -142,8 +175,13 @@ module tb_sparse;
             mismatches = mismatches + 1;
         end
 
-        if (expected_stats[1] >= expected_stats[3]) begin
-            $display("ERROR: active sparse cycles did not decrease: active=%0d dense=%0d", expected_stats[1], expected_stats[3]);
+        if (cycle_count !== expected_stats[4]) begin
+            $display("ERROR: cycle_count got=%0d expected=%0d", cycle_count, expected_stats[4]);
+            mismatches = mismatches + 1;
+        end
+
+        if (active_cycle_count >= expected_stats[3]) begin
+            $display("ERROR: active sparse cycles did not decrease: active=%0d dense=%0d", active_cycle_count, expected_stats[3]);
             mismatches = mismatches + 1;
         end
 

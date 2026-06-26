@@ -77,6 +77,27 @@ module tb_pw;
         $readmemh("sim/build/pw/expected.hex", expected_mem);
 
         for (idx = 0; idx < INPUT_COUNT; idx = idx + 1) begin
+            if (^input_mem[idx] === 1'bx) begin
+                $display("ERROR: input_act[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < WEIGHT_COUNT; idx = idx + 1) begin
+            if (^weight_mem[idx] === 1'bx) begin
+                $display("ERROR: weights[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
+            if (^expected_mem[idx] === 1'bx) begin
+                $display("ERROR: expected[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < INPUT_COUNT; idx = idx + 1) begin
             input_flat[idx*DATA_W +: DATA_W] = input_mem[idx];
         end
 

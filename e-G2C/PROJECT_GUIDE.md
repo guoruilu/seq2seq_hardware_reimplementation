@@ -84,14 +84,14 @@ Planned RTL files:
 | `rtl/eg2c_output_act_buffer.v` | Collects and writes output activations |
 | `rtl/eg2c_dense_conv2d.v` | Baseline normal convolution schedule |
 | `rtl/eg2c_dw_conv2d.v` | Baseline depth-wise convolution schedule |
-| `rtl/eg2c_dw_reuse_conv2d.v` | DW output-equivalent CIR/D-RIR schedule counter model |
+| `rtl/eg2c_dw_reuse_conv2d.v` | DW output-equivalent CIR/D-RIR counter model; true lane-assignment scheduling remains future work |
 | `rtl/eg2c_pw_conv2d.v` | Baseline point-wise convolution schedule |
 | `rtl/eg2c_detector_branch.v` | Signed detector threshold comparison and coarse/precise path selection |
 | `rtl/eg2c_sparse_selector.v` | Vector-wise sparse activation selection |
-| `rtl/eg2c_sparse_vector_mac.v` | Architecture-level sparse vector MAC with active/skip counters |
-| `rtl/eg2c_adapt_engine.v` | Histogram, argmin, threshold update |
-| `rtl/eg2c_controller.v` | Instruction decode and layer scheduling |
-| `rtl/eg2c_top.v` | Wires memories, NN engine, adaptation engine, and controller |
+| `rtl/eg2c_sparse_vector_mac.v` | Architecture-level sparse vector MAC with active/skip counters; normal/PW conv integration remains future work |
+| `rtl/eg2c_adapt_engine.v` | Planned histogram, argmin, threshold update module |
+| `rtl/eg2c_controller.v` | Current smoke/top-shell instruction walker; operation-specific dense scheduling is in `eg2c_dense_pipeline.v` |
+| `rtl/eg2c_top.v` | Current memory/controller smoke shell; full integrated toy top remains future work |
 
 The first milestone may combine some modules if that keeps the code easier to verify. If modules are split later, the guide must be updated.
 

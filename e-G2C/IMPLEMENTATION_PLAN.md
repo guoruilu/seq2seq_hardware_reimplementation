@@ -36,6 +36,10 @@ Standard files:
 | `indices.hex` | Python generator | testbench index memory loader | one unsigned index word per line; width documented per target |
 | `instr.hex` | Python generator | instruction SRAM loader | one 32-bit instruction per line, big-endian human-readable hex |
 | `ctx.hex` | Python generator | optional context memory loader | one context word per line; width documented in the target README/header |
+| `scores.hex` / `thresholds.hex` | Python generator | branch testbench | signed 8-bit detector score and threshold values |
+| `expected_path.bin` | Python generator | branch testbench | one binary path bit per branch case; `1` means precise/abnormal |
+| `vector_valid.bin` | Python generator | sparse testbench | one binary validity bit per sparse vector |
+| `expected_stats.hex` | Python generator | sparse and schedule-counter testbenches | 32-bit hex counters; fields are target-specific and documented in `target.json` |
 | `target.json` | Python generator | Python golden, RTL testbench documentation | target shape/layout/padding/stride/arithmetic assumptions |
 | `adapt_target.json` | Python generator | adaptation golden and testbench documentation | threshold interval boundaries, score format, counter width, update window |
 | `expected.hex` | Python golden | testbench checker | one signed output activation per line; first baseline uses 8-bit two's-complement hex |
@@ -68,10 +72,10 @@ Milestones are intentionally small. Do not skip ahead to a full pipeline before 
 | M2B | `./sim/run_sim.sh dw` | one dense depth-wise convolution target passes |
 | M2C | `./sim/run_sim.sh pw` | one dense point-wise convolution target passes |
 | M2D | `./sim/run_sim.sh pool` | one average-pooling target passes |
-| M3 | `./sim/run_sim.sh pipeline_dense` | instruction-driven dense detector/coarse/precise toy pipeline passes |
+| M3 | `./sim/run_sim.sh pipeline_dense` | instruction-driven dense CONV -> POOL -> DONE toy pipeline passes |
 | M4 | `./sim/run_sim.sh branch` | detector threshold selects coarse and precise paths correctly |
-| M5 | `./sim/run_sim.sh sparse` | vector-wise sparse mode matches dense output |
-| M6 | `./sim/run_sim.sh dw_reuse` | DW reuse schedules match simple DW output and print utilization counters |
+| M5 | `./sim/run_sim.sh sparse` | vector-wise sparse MAC model matches dense dot-product output and reports skipped work |
+| M6 | `./sim/run_sim.sh dw_reuse` | DW output-equivalent reuse counter model prints simple/CIR/D-RIR utilization counters |
 | M7 | `./sim/run_sim.sh adapt` | threshold adaptation engine matches Python golden |
 | M8 | `./sim/run_sim.sh top` | integrated e-G2C toy system passes normal and abnormal scenarios |
 
@@ -299,7 +303,8 @@ Tasks:
 - Define compressed vector format.
 - Define index format.
 - Implement `eg2c_sparse_selector.v`.
-- Add sparse mode to normal conv and point-wise conv schedules.
+- Implement an architecture-level sparse vector MAC target.
+- Later: add sparse mode to normal conv and point-wise conv schedules.
 - Count skipped vectors and active MAC cycles.
 
 Verification:
@@ -309,13 +314,15 @@ Verification:
 - Compare both RTL results to Python golden.
 
 Acceptance:
-- Sparse output equals dense output.
+- Sparse vector-MAC output equals dense dot-product output.
 - Simulated active work decreases on sparse test cases.
+- Full normal/PW conv schedule integration is tracked as follow-up work.
 
 ## Phase 7 -- Depth-Wise Conv Reuse Modes
 
 Goal:
-- Add architecture-level CIR and D-RIR scheduling for depth-wise convolution.
+- Add an architecture-level CIR and D-RIR utilization model for depth-wise convolution.
+- Keep exact lane-assignment scheduling as explicit follow-up work.
 
 Paper behavior:
 - CIR maps one input activation row to three MAC lanes for three output rows.
@@ -323,17 +330,19 @@ Paper behavior:
 
 Tasks:
 - Keep the simple DW Conv as a reference path.
-- Add `dw_mode`:
+- Add a first output-equivalent DW reuse counter model.
+- Later: add `dw_mode`:
   - `simple`;
   - `cir`;
   - `d_rir`.
-- Implement scheduling counters and lane assignment.
+- Implement scheduling counters.
+- Later: implement lane assignment.
 - Track utilization counters.
 
 Verification:
-- Same input/weights through simple, CIR, and D-RIR modes.
-- Outputs must match.
-- Cycle/utilization counters should show the intended trend.
+- Same input/weights through simple DW reference output.
+- Simple output must match Python golden.
+- Simple/CIR/D-RIR counter model should show the intended trend.
 
 Acceptance:
 - `./sim/run_sim.sh dw_reuse` reports PASS and prints cycle counts.
@@ -436,6 +445,6 @@ The first integration milestone is:
 ./sim/run_sim.sh pipeline_dense
 ```
 
-It should run detector/coarse/precise toy dense layers without sparse optimization and match Python golden.
+It currently runs a compact CONV -> POOL -> DONE dense toy program without sparse optimization and matches Python golden. Detector/coarse/precise top-level sequencing is reserved for the later `top` target.
 
 Only after the dense pipeline milestone should sparse mode and DW reuse be added.

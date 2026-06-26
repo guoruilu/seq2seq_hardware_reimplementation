@@ -18,10 +18,10 @@ module eg2c_index_mem #(
 
     reg [DATA_W-1:0] mem [0:DEPTH-1];
 
-    assign rd_data_o = mem[rd_addr_i];
+    assign rd_data_o = (rd_addr_i < DEPTH) ? mem[rd_addr_i] : {DATA_W{1'b0}};
 
     always @(posedge clk_i) begin
-        if (we_i) begin
+        if (we_i && wr_addr_i < DEPTH) begin
             mem[wr_addr_i] <= wr_data_i;
         end
     end

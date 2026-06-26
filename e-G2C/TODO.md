@@ -41,8 +41,10 @@
 ## P3 -- e-G2C Features
 
 - [x] Add detector branch to coarse/precise path.
-- [x] Add vector-wise sparse normal/PW conv mode.
-- [x] Add DW Conv CIR and D-RIR scheduling modes.
+- [x] Add architecture-level vector-wise sparse selector/MAC model.
+- [ ] Integrate vector-wise sparse mode into normal/PW conv schedules.
+- [x] Add DW Conv CIR/D-RIR output-equivalent counter model.
+- [ ] Implement true DW `simple`/`cir`/`d_rir` lane-assignment scheduler.
 - [ ] Add threshold adaptation engine.
 - [ ] Add top-level integrated toy system regression: `./sim/run_sim.sh top`.
 
@@ -50,4 +52,4 @@
 
 - [ ] Update project guide with actual RTL module details.
 - [ ] Keep generated files under `sim/build/` or `e-G2C/extracted/`.
-- [ ] Record implementation bugs in `BUGFIX.md`.
+- [x] Record implementation bugs in `BUGFIX.md`.

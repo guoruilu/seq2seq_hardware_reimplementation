@@ -57,6 +57,15 @@ module eg2c_avg_pool2d #(
         end
     endfunction
 
+    initial begin
+        if (DATA_W != 8) begin
+            $fatal(1, "eg2c_avg_pool2d currently requires 8-bit activations");
+        end
+        if (ACC_W < DATA_W) begin
+            $fatal(1, "eg2c_avg_pool2d requires ACC_W >= DATA_W");
+        end
+    end
+
     function [DATA_W-1:0] saturate_int8;
         input signed [ACC_W-1:0] value;
         begin
@@ -73,7 +82,10 @@ module eg2c_avg_pool2d #(
     always @(out_y_q or out_x_q or ch_q or pool_y_q or pool_x_q or acc_q or input_act_i) begin
         in_y = out_y_q * STRIDE_H + pool_y_q;
         in_x = out_x_q * STRIDE_W + pool_x_q;
-        act_value = get_act(in_y, in_x, ch_q);
+        act_value = {DATA_W{1'b0}};
+        if (in_y >= 0 && in_y < IN_H && in_x >= 0 && in_x < IN_W) begin
+            act_value = get_act(in_y, in_x, ch_q);
+        end
         acc_next = acc_q + {{(ACC_W-DATA_W){act_value[DATA_W-1]}}, act_value};
         pool_last = (pool_y_q == POOL_H - 1) && (pool_x_q == POOL_W - 1);
         out_index = ((out_y_q * OUT_W + out_x_q) * CHANNELS + ch_q) * DATA_W;

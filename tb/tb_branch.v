@@ -6,7 +6,7 @@
 module tb_branch;
 
     localparam integer DATA_W = `EG2C_DATA_W;
-    localparam integer CASE_COUNT = 3;
+    localparam integer CASE_COUNT = 5;
     localparam integer OUT_COUNT = 8;
 
     reg signed [DATA_W-1:0] score;
@@ -41,6 +41,13 @@ module tb_branch;
     );
 
     initial begin
+        if ($test$plusargs("WAVE")) begin
+            $dumpfile("sim/build/branch/wave.vcd");
+            $dumpvars(0, tb_branch);
+        end
+    end
+
+    initial begin
         mismatches = 0;
         score = '0;
         threshold = '0;
@@ -53,6 +60,22 @@ module tb_branch;
         $readmemh("sim/build/branch/precise.hex", precise_mem);
         $readmemh("sim/build/branch/expected.hex", expected_mem);
         $readmemb("sim/build/branch/expected_path.bin", expected_path_mem);
+
+        for (case_idx = 0; case_idx < CASE_COUNT; case_idx = case_idx + 1) begin
+            if (^score_mem[case_idx] === 1'bx || ^threshold_mem[case_idx] === 1'bx ||
+                expected_path_mem[case_idx] === 1'bx) begin
+                $display("ERROR: branch case %0d has X/Z in loaded score, threshold, or path", case_idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (elem_idx = 0; elem_idx < CASE_COUNT*OUT_COUNT; elem_idx = elem_idx + 1) begin
+            if (^coarse_mem[elem_idx] === 1'bx || ^precise_mem[elem_idx] === 1'bx ||
+                ^expected_mem[elem_idx] === 1'bx) begin
+                $display("ERROR: branch vector entry %0d has X/Z in loaded data", elem_idx);
+                mismatches = mismatches + 1;
+            end
+        end
 
         for (case_idx = 0; case_idx < CASE_COUNT; case_idx = case_idx + 1) begin
             score = score_mem[case_idx];

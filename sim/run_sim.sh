@@ -27,7 +27,7 @@ Options:
 USAGE
 }
 
-if [[ -z "$target" ]]; then
+if [[ "$#" -lt 1 || "$#" -gt 2 ]]; then
     usage
     exit 2
 fi
@@ -78,6 +78,7 @@ fi
 
 build_dir="$root_dir/sim/build/$target"
 mkdir -p "$build_dir"
+cd "$root_dir"
 
 case "$target" in
     conv|dw|pw|pool|pipeline_dense|branch|sparse|dw_reuse)

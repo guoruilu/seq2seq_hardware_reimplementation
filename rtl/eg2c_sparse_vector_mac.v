@@ -55,6 +55,15 @@ module eg2c_sparse_vector_mac #(
         .act_o(selected_act)
     );
 
+    initial begin
+        if (DATA_W != 8 || WEIGHT_W != 8) begin
+            $fatal(1, "eg2c_sparse_vector_mac currently requires 8-bit activations and weights");
+        end
+        if (ACC_W < DATA_W + WEIGHT_W) begin
+            $fatal(1, "eg2c_sparse_vector_mac requires ACC_W >= DATA_W + WEIGHT_W");
+        end
+    end
+
     function [INDEX_W-1:0] get_index;
         input integer vec;
         input integer elem;

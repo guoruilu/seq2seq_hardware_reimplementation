@@ -75,6 +75,15 @@ module eg2c_pw_conv2d #(
         end
     endfunction
 
+    initial begin
+        if (DATA_W != 8 || WEIGHT_W != 8) begin
+            $fatal(1, "eg2c_pw_conv2d currently requires 8-bit activations and weights");
+        end
+        if (ACC_W < DATA_W + WEIGHT_W) begin
+            $fatal(1, "eg2c_pw_conv2d requires ACC_W >= DATA_W + WEIGHT_W");
+        end
+    end
+
     always @(out_y_q or out_x_q or out_c_q or in_c_q or acc_q or input_act_i or weight_i) begin
         act_value = get_act(out_y_q, out_x_q, in_c_q);
         weight_value = get_weight(in_c_q, out_c_q);

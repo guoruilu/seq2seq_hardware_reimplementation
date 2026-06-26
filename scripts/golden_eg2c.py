@@ -389,6 +389,22 @@ def gen_pipeline_dense(build_dir: Path) -> None:
             "accumulator": "signed int32",
             "output": "signed int8 saturated after each layer",
         },
+        "layers": [
+            {
+                "opcode": "CONV",
+                "kernel": {"h": k_h, "w": k_w},
+                "stride": {"h": 1, "w": 1},
+                "padding": {"mode": "explicit_zero", "top": pad_h, "bottom": pad_h, "left": pad_w, "right": pad_w},
+                "activation_function": "linear",
+            },
+            {
+                "opcode": "POOL",
+                "pool": {"h": 2, "w": 2},
+                "stride": {"h": 2, "w": 2},
+                "padding": {"mode": "none"},
+                "division": "integer divide truncating toward zero",
+            },
+        ],
         "expected_cycles": 912,
     }
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
@@ -400,6 +416,8 @@ def gen_branch(build_dir: Path) -> None:
         {"score": 10, "threshold": 20},
         {"score": 33, "threshold": 20},
         {"score": -4, "threshold": -4},
+        {"score": -1, "threshold": 1},
+        {"score": 1, "threshold": -1},
     ]
     coarse: list[int] = []
     precise: list[int] = []
@@ -482,6 +500,7 @@ def gen_sparse(build_dir: Path) -> None:
             active_cycles += 1
 
     dense_cycles = vec_count * vec_len
+    total_cycles = active_cycles + skipped_vectors
     output = sat_int8(dense_acc)
 
     build_dir.mkdir(parents=True, exist_ok=True)
@@ -490,7 +509,7 @@ def gen_sparse(build_dir: Path) -> None:
     write_hex(build_dir / "weights.hex", weights)
     (build_dir / "vector_valid.bin").write_text("".join(f"{bit:b}\n" for bit in vector_valid), encoding="ascii")
     write_hex(build_dir / "expected.hex", [output])
-    stats = [dense_acc & 0xFFFFFFFF, active_cycles, skipped_vectors, dense_cycles]
+    stats = [dense_acc & 0xFFFFFFFF, active_cycles, skipped_vectors, dense_cycles, total_cycles]
     (build_dir / "expected_stats.hex").write_text("".join(f"{value:08x}\n" for value in stats), encoding="ascii")
 
     target = {
@@ -519,6 +538,7 @@ def gen_sparse(build_dir: Path) -> None:
             "active_sparse_cycles": active_cycles,
             "dense_equivalent_cycles": dense_cycles,
             "skipped_vectors": skipped_vectors,
+            "total_sparse_cycles": total_cycles,
         },
     }
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
@@ -578,6 +598,18 @@ def gen_dw_reuse(build_dir: Path) -> None:
         "layout": {
             "activation": "NHWC",
             "weight": "kh,kw,channel",
+        },
+        "arithmetic": {
+            "activation": "signed int8 two's-complement",
+            "weight": "signed int8 two's-complement",
+            "accumulator": "signed int32",
+            "output": "signed int8 saturated from accumulator",
+            "scale_zero_point": None,
+        },
+        "convolution": {
+            "stride": {"h": 1, "w": 1},
+            "padding": {"mode": "explicit_zero", "top": pad_h, "bottom": pad_h, "left": pad_w, "right": pad_w},
+            "activation_function": "linear",
         },
         "schedule_model": {
             "simple_cycles": simple_cycles,

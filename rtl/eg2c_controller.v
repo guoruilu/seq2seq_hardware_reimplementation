@@ -18,8 +18,6 @@ module eg2c_controller #(
     output wire [7:0]              opcode_o
 );
 
-    reg [1:0] run_count_q;
-
     assign opcode_o = instr_data_i[31:24];
 
     always @(posedge clk_i or negedge rst_ni) begin
@@ -28,7 +26,6 @@ module eg2c_controller #(
             busy_o       <= 1'b0;
             done_o       <= 1'b0;
             state_o      <= `EG2C_CTRL_IDLE;
-            run_count_q  <= 2'd0;
         end else begin
             done_o <= 1'b0;
 
@@ -49,18 +46,20 @@ module eg2c_controller #(
                 `EG2C_CTRL_DECODE: begin
                     if (opcode_o == `EG2C_OP_DONE) begin
                         state_o <= `EG2C_CTRL_DONE;
+                    end else if (opcode_o == `EG2C_OP_NOP) begin
+                        instr_addr_o <= instr_addr_o + {{(INSTR_ADDR_W-1){1'b0}}, 1'b1};
+                        state_o      <= `EG2C_CTRL_FETCH;
                     end else begin
-                        run_count_q <= 2'd2;
+                        // This controller is still a top-level smoke scheduler.
+                        // Operation-specific layer execution is modeled by
+                        // eg2c_dense_pipeline and later integrated top work.
                         state_o     <= `EG2C_CTRL_RUN;
                     end
                 end
 
                 `EG2C_CTRL_RUN: begin
-                    if (run_count_q == 2'd0) begin
-                        state_o <= `EG2C_CTRL_DONE;
-                    end else begin
-                        run_count_q <= run_count_q - 2'd1;
-                    end
+                    instr_addr_o <= instr_addr_o + {{(INSTR_ADDR_W-1){1'b0}}, 1'b1};
+                    state_o      <= `EG2C_CTRL_FETCH;
                 end
 
                 `EG2C_CTRL_DONE: begin

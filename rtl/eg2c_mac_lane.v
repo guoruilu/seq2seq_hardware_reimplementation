@@ -22,6 +22,12 @@ module eg2c_mac_lane #(
 
     assign product = act_i * weight_i;
 
+    initial begin
+        if (ACC_W < DATA_W + WEIGHT_W) begin
+            $fatal(1, "eg2c_mac_lane requires ACC_W >= DATA_W + WEIGHT_W");
+        end
+    end
+
     always @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
             acc_o   <= {ACC_W{1'b0}};

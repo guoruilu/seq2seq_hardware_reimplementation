@@ -1,0 +1,51 @@
+# TODO
+
+> Keep this file short. Detailed reasoning belongs in `IMPLEMENTATION_PLAN.md`.
+
+## P0 -- Documents And Paper Extraction
+
+- [x] Verify installed tools: `iverilog`, `vvp`, `pdftotext`, `pdfimages`, `gtkwave`.
+- [x] Add initial project guide, paper notes, implementation plan, TODO, LOG, and BUGFIX.
+- [ ] Extract paper text to `e-G2C/extracted/paper_text.txt`.
+- [ ] Extract page images and key figures to `e-G2C/extracted/`.
+- [ ] Add `e-G2C/extracted/README.md` with extraction commands and file list.
+- [ ] Add figure references to `PAPER_NOTES.md`.
+- [ ] Record any external sources before using them for implementation assumptions.
+
+## P1 -- Skeleton And Arithmetic Milestones
+
+- [ ] Create `rtl/`, `tb/`, `sim/`, and `scripts/`.
+- [ ] Add `eg2c_defines.vh`.
+- [ ] Implement behavioral memories.
+- [ ] Implement pass-through `eg2c_input_act_buffer.v` and `eg2c_output_act_buffer.v`.
+- [ ] Implement MAC lane and MAC array.
+- [ ] Add `sim/run_sim.sh` with `smoke`, `mac`, and `wave` support.
+- [ ] Run `./sim/run_sim.sh smoke`.
+- [ ] Run `./sim/run_sim.sh mac`.
+
+## P2 -- Dense Operation Baseline
+
+- [ ] Freeze Phase 3 assumptions in generated `target.json`: layout, padding, stride, activation, saturation.
+- [ ] Implement Python generator/golden contract under `scripts/`.
+- [ ] Implement dense normal conv toy test: `./sim/run_sim.sh conv`.
+- [ ] Implement dense depth-wise conv toy test: `./sim/run_sim.sh dw`.
+- [ ] Implement dense point-wise conv toy test: `./sim/run_sim.sh pw`.
+- [ ] Implement average-pooling toy test: `./sim/run_sim.sh pool`.
+
+## P2.5 -- Instruction Pipeline
+
+- [ ] Implement instruction-driven dense toy pipeline: `./sim/run_sim.sh pipeline_dense`.
+
+## P3 -- e-G2C Features
+
+- [ ] Add detector branch to coarse/precise path.
+- [ ] Add vector-wise sparse normal/PW conv mode.
+- [ ] Add DW Conv CIR and D-RIR scheduling modes.
+- [ ] Add threshold adaptation engine.
+- [ ] Add top-level integrated toy system regression: `./sim/run_sim.sh top`.
+
+## P4 -- Cleanup
+
+- [ ] Update project guide with actual RTL module details.
+- [ ] Keep generated files under `sim/build/` or `e-G2C/extracted/`.
+- [ ] Record implementation bugs in `BUGFIX.md`.

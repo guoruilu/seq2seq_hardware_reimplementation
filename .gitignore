@@ -1,0 +1,47 @@
+# Local agent/session state
+.agents/
+.codex/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*~
+.vscode/
+.idea/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Verilog simulation/build outputs
+build/
+sim/build/
+*.vvp
+*.vcd
+*.fst
+*.lxt
+*.lxt2
+*.vzt
+*.ghw
+*.vpd
+
+# Tool/download scratch space
+tools/
+*.deb
+
+# Generated paper extraction assets.
+# Keep source PDFs and markdown notes tracked; ignore bulky reproducible images.
+e-G2C/extracted/pages/
+e-G2C/extracted/figures/
+e-G2C/extracted/images/
+e-G2C/extracted/**/*.png
+e-G2C/extracted/**/*.jpg
+e-G2C/extracted/**/*.jpeg
+e-G2C/extracted/**/*.ppm
+e-G2C/extracted/**/*.pbm
+

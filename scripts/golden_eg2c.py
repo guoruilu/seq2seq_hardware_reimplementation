@@ -524,9 +524,74 @@ def gen_sparse(build_dir: Path) -> None:
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
 
+def gen_dw_reuse(build_dir: Path) -> None:
+    in_h = 4
+    in_w = 4
+    channels = 4
+    k_h = 3
+    k_w = 3
+    pad_h = 1
+    pad_w = 1
+
+    input_count = in_h * in_w * channels
+    weight_count = k_h * k_w * channels
+
+    input_act = [((idx * 5 + 7) % 27) - 13 for idx in range(input_count)]
+    weights = [((idx * 7 + 3) % 13) - 6 for idx in range(weight_count)]
+
+    expected: list[int] = []
+    for oy in range(in_h):
+        for ox in range(in_w):
+            for ch in range(channels):
+                acc = 0
+                for ky in range(k_h):
+                    for kx in range(k_w):
+                        iy = oy + ky - pad_h
+                        ix = ox + kx - pad_w
+                        if 0 <= iy < in_h and 0 <= ix < in_w:
+                            act_idx = (iy * in_w + ix) * channels + ch
+                            weight_idx = (ky * k_w + kx) * channels + ch
+                            acc += input_act[act_idx] * weights[weight_idx]
+                expected.append(sat_int8(acc))
+
+    simple_cycles = in_h * in_w * channels * k_h * k_w
+    cir_cycles = (simple_cycles + 2) // 3
+    drir_cycles = (simple_cycles + 1) // 2
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "input_act.hex", input_act)
+    write_hex(build_dir / "weights.hex", weights)
+    write_hex(build_dir / "expected.hex", expected)
+    (build_dir / "expected_stats.hex").write_text(
+        f"{simple_cycles:08x}\n{cir_cycles:08x}\n{drir_cycles:08x}\n",
+        encoding="ascii",
+    )
+
+    target = {
+        "target": "dw_reuse",
+        "operation": "depthwise_conv2d_reuse_schedule_model",
+        "shape": {
+            "input": {"h": in_h, "w": in_w, "c": channels},
+            "kernel": {"h": k_h, "w": k_w},
+            "output": {"h": in_h, "w": in_w, "c": channels},
+        },
+        "layout": {
+            "activation": "NHWC",
+            "weight": "kh,kw,channel",
+        },
+        "schedule_model": {
+            "simple_cycles": simple_cycles,
+            "cir_cycles": cir_cycles,
+            "drir_cycles": drir_cycles,
+            "note": "Architecture-level utilization trend only; not an ASIC cycle-accurate claim.",
+        },
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", choices=["conv", "dw", "pw", "pool", "pipeline_dense", "branch", "sparse"])
+    parser.add_argument("target", choices=["conv", "dw", "pw", "pool", "pipeline_dense", "branch", "sparse", "dw_reuse"])
     parser.add_argument("--build-dir", required=True, type=Path)
     args = parser.parse_args()
 
@@ -544,6 +609,8 @@ def main() -> None:
         gen_branch(args.build_dir)
     elif args.target == "sparse":
         gen_sparse(args.build_dir)
+    elif args.target == "dw_reuse":
+        gen_dw_reuse(args.build_dir)
 
 
 if __name__ == "__main__":

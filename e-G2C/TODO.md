@@ -42,7 +42,7 @@
 
 - [x] Add detector branch to coarse/precise path.
 - [x] Add vector-wise sparse normal/PW conv mode.
-- [ ] Add DW Conv CIR and D-RIR scheduling modes.
+- [x] Add DW Conv CIR and D-RIR scheduling modes.
 - [ ] Add threshold adaptation engine.
 - [ ] Add top-level integrated toy system regression: `./sim/run_sim.sh top`.
 

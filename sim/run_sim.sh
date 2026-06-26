@@ -20,6 +20,7 @@ Targets:
            Verify instruction-driven CONV -> POOL dense toy pipeline
   branch   Verify detector threshold branch between coarse and precise paths
   sparse   Verify vector-wise sparse activation selection and MAC work reduction
+  dw_reuse Verify DW output equivalence and CIR/D-RIR schedule counters
 
 Options:
   wave     Also write sim/build/<target>/wave.vcd when supported
@@ -59,6 +60,9 @@ case "$target" in
     sparse)
         tb_file="$root_dir/tb/tb_sparse.v"
         ;;
+    dw_reuse)
+        tb_file="$root_dir/tb/tb_dw_reuse.v"
+        ;;
     *)
         echo "Unknown target: $target" >&2
         usage >&2
@@ -76,7 +80,7 @@ build_dir="$root_dir/sim/build/$target"
 mkdir -p "$build_dir"
 
 case "$target" in
-    conv|dw|pw|pool|pipeline_dense|branch|sparse)
+    conv|dw|pw|pool|pipeline_dense|branch|sparse|dw_reuse)
         python3 "$root_dir/scripts/golden_eg2c.py" "$target" --build-dir "$build_dir"
         ;;
 esac
@@ -98,6 +102,7 @@ rtl_files=(
     "$root_dir/rtl/eg2c_detector_branch.v"
     "$root_dir/rtl/eg2c_sparse_selector.v"
     "$root_dir/rtl/eg2c_sparse_vector_mac.v"
+    "$root_dir/rtl/eg2c_dw_reuse_conv2d.v"
     "$root_dir/rtl/eg2c_controller.v"
     "$root_dir/rtl/eg2c_top.v"
 )

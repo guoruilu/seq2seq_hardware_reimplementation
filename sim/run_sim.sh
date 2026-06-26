@@ -12,6 +12,7 @@ Usage: ./sim/run_sim.sh <target> [wave]
 Targets:
   smoke    Compile the minimal e-G2C RTL shell and run the smoke test
   mac      Verify signed MAC lane and 32-lane MAC array arithmetic
+  conv     Verify dense 3x3 normal convolution against Python golden output
 
 Options:
   wave     Also write sim/build/<target>/wave.vcd when supported
@@ -30,6 +31,9 @@ case "$target" in
     mac)
         tb_file="$root_dir/tb/tb_mac.v"
         ;;
+    conv)
+        tb_file="$root_dir/tb/tb_conv.v"
+        ;;
     *)
         echo "Unknown target: $target" >&2
         usage >&2
@@ -46,6 +50,12 @@ fi
 build_dir="$root_dir/sim/build/$target"
 mkdir -p "$build_dir"
 
+case "$target" in
+    conv)
+        python3 "$root_dir/scripts/golden_eg2c.py" "$target" --build-dir "$build_dir"
+        ;;
+esac
+
 rtl_files=(
     "$root_dir/rtl/eg2c_act_mem.v"
     "$root_dir/rtl/eg2c_weight_mem.v"
@@ -55,6 +65,7 @@ rtl_files=(
     "$root_dir/rtl/eg2c_output_act_buffer.v"
     "$root_dir/rtl/eg2c_mac_lane.v"
     "$root_dir/rtl/eg2c_mac_array.v"
+    "$root_dir/rtl/eg2c_dense_conv2d.v"
     "$root_dir/rtl/eg2c_controller.v"
     "$root_dir/rtl/eg2c_top.v"
 )

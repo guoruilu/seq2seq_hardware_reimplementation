@@ -27,9 +27,9 @@
 
 ## P2 -- Dense Operation Baseline
 
-- [ ] Freeze Phase 3 assumptions in generated `target.json`: layout, padding, stride, activation, saturation.
-- [ ] Implement Python generator/golden contract under `scripts/`.
-- [ ] Implement dense normal conv toy test: `./sim/run_sim.sh conv`.
+- [x] Freeze Phase 3 assumptions in generated `target.json`: layout, padding, stride, activation, saturation.
+- [x] Implement Python generator/golden contract under `scripts/`.
+- [x] Implement dense normal conv toy test: `./sim/run_sim.sh conv`.
 - [ ] Implement dense depth-wise conv toy test: `./sim/run_sim.sh dw`.
 - [ ] Implement dense point-wise conv toy test: `./sim/run_sim.sh pw`.
 - [ ] Implement average-pooling toy test: `./sim/run_sim.sh pool`.

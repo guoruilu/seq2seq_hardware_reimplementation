@@ -1,0 +1,99 @@
+   e-G2C: A 0.14-to-8.31 µJ/Inference NN-based Processor with Continuous On-chip
+        Adaptation for Anomaly Detection and ECG Conversion from EGM
+   Yang Zhao1, Yongan Zhang1, Yonggan Fu1, Xu Ouyang1, Cheng Wan1, Shang Wu1, Anton Banta1,
+ Mathews M. John2, Allison Post2, Mehdi Razavi2, Joseph Cavallaro1, Behnaam Aazhang1, Yingyan Lin1*
+     1
+         Rice University, Houston, Texas, USA; 2Texas Heart Institute, Houston, Texas, USA; *Email: yingyan.lin@rice.edu
+                              Abstract                              that exists in all Convs. Second, e-G2C adopts two Act GBs
+   This work presents the first silicon-validated dedicated         that iterate layer-wise as input/output Act GB to eliminate off-
+EGM-to-ECG (G2C) processor, dubbed e-G2C, featuring                 chip Act accesses. Third, to pipeline the data preparation and
+continuous lightweight anomaly detection, event-driven              computation, an input and output Act buffer are inserted.
+coarse/precise conversion, and on-chip adaptation. e-G2C            Finally, the weight buffer supports both 4-bit power-of-2 and
+utilizes neural network (NN) based G2C conversion and               8-bit int weight formats to provide coarse/precise processing.
+integrates 1) an architecture supporting anomaly detection and      The adaptation engine consists of a comparator (Cmp.), an
+coarse/precise conversion via time multiplexing to balance the      argmin calculator (Argmin), and registers for the adaptation.
+effectiveness and power, 2) an algorithm-hardware co-                  2. Algorithm-hardware Co-designed Vector-wise Sparse
+designed vector-wise sparsity resulting in a 1.6-1.7× speedup,      NN Processing: Fig. 3 shows e-G2C’s algorithm-hardware co-
+3) hybrid dataflows for enhancing near 100% utilization             designed vector-wise sparsity for both normal and PW Conv
+for normal/depth-wise(DW)/point-wise(PW) convolutions               and a supporting input Act buffer design. On the algorithm
+(Convs), and 4) an on-chip detection threshold adaptation           level, one sparse vector corresponds to one row of weights in
+engine for continuous effectiveness. The achieved 0.14-8.31         normal Conv and to three weights in PW-Conv. Such vector-
+µJ/inference energy efficiency outperforms prior arts under         wise sparsity offers the benefits of skipping the computations
+similar complexity, promising real-time detection/conversion        and thus reduces latency and energy. On the hardware level,
+and possibly life-critical interventions.                           the input Act buffer temporally stores input Acts, and uses
+                            Introduction                            indices to select proper Acts for each MAC lane.
+   Globally, about 600K cardiac pacemakers are implanted               3. Intra-channel Reuse for DW-Conv: Since Acts in DW-
+annually. There has been a growing interest in remote               Conv cannot be reused by different weight kernels, e-G2C
+pacemaker monitoring for reducing the frequency of costly           leverages the reuse opportunities of Acts for one weight kernel,
+hospital visits. Traditionally pacemakers utilize locally sensed    i.e., column-wise intra-channel reuse (CIR) and deeper RIR
+EGM to provide therapy, but 12-channel ECG can provide              (D-RIR) (Fig. 4), for boosted utilization. In CIR, one input Act
+more information for better diagnosis/therapy (Fig. 1) [1].         row is reused by three weight rows of one column for its
+Presently there is no means to do G2C conversion in                 corresponding three output Act rows of one column. e-G2C
+pacemakers and real-time on-pacemaker G2C conversion is             maps the weight rows and the corresponding input Act row into
+highly desirable. While NN-based conversion offers a higher         three MAC lanes to increase the utilization by 3×. In D-RIR,
+conversion quality and is more robust to real-world noise,          e-G2C divides one input Act row into two sub rows,
+artifacts, and diverse pathologies [1], it requires a prohibitive   corresponding to two sub rows of length-4 output Act in one
+computational cost. To tackle this, e-G2C integrates 1) an          output row, and further spatially maps these computations to
+architecture supporting a precise and more complex conversion       two MAC lanes for 2× utilization. These hybrid dataflows for
+algorithm in instant response to only the detected anomaly (i.e.,   different Convs result in near 100% utilization for all Convs.
+arrhythmia) and activates a coarse conversion otherwise to          Fig. 5 lists the models’ structures and accuracies on a clinically
+balance the effectiveness and power consumption via time            collected dataset and the speedup with the proposed techniques.
+multiplexing (Fig. 1); 2) algorithm-hardware co-design for             4. The Anomaly Detection: For anomaly detection, the
+enabling sparse NN processing; and 3) hybrid dataflows for          detection threshold needs to adapt to the heart condition over
+enhancing near 100% utilization for all Convs. Furthermore, e-      time and across patients, requiring continuous threshold
+G2C is equipped with 4) a continuous on-chip learning engine        adaptation for real-world effectiveness. As an optimal anomaly
+to adapt the detection threshold over time for each patient.        threshold aligns with the detection output within a sensitive
+                  Proposed e-G2C Processor                          range, our e-G2C chip integrates a threshold adaptation flow
+   1. Overall Architecture: e-G2C includes two main engines:        consisting of three steps (Fig. 6): (1) calculating the histogram
+NN and adaptation engines (Fig. 2). In particular, the NN           of the detector’s outputs for T days (e.g., T = 3) by using Cmp.,
+engine consists of weight, index, input/output activation (Act)     (2) selecting the interval with the least occurrence based on the
+memories, and 32 multiplication-and-accumulation (MAC)              histogram through Argmin, and (3) setting the mean of the
+lanes. To orchestrate the processing of the three different         above interval as the threshold. Such threshold adaptation leads
+models including anomaly detector and coarse/precise                to a 3.45%-4.00% higher accuracy against a static threshold.
+convertors, the on-chip controller reads 32-bit instructions                               Measurement Results
+from the instruction SRAM to control the processor. First, a           e-G2C is fabricated in 28nm CMOS technology (Fig. 7), and
+weight global buffer (GB) stores the compressed sparse              Fig. 8 summarizes measurement results together with related
+weights, and an index SRAM stores the weight indices, while         prior works. The achieved energy efficiency for detection
+each MAC lane performs row-wise intra-channel reuse (RIR)           (0.14 µJ/detection) and conversion (4.13 µJ/conversion
+and 8.31 µJ/conversion for coarse/precise conversion,
+respectively) outperforms prior arts with similar model
+complexity. The achieved latency for one coarse/precise
+conversion with detection is 1.32%/2.66% of one heartbeat
+period (assuming a heart rate of 80 bpm), promising real-time
+detection/conversion and possibly life-critical interventions.
+Acknowledgement. This work was supported by National
+Institutes of Health (R01HL144683), National Science
+Foundation (1937592), and Silicon Creations.                             Fig. 4 The proposed intra-channel reuse dataflow for DW Conv.
+                         References
+[1] Y. Zhang, et al. JETC, 2021.       [2] J. Liu, et al. ISSCC, 2021.
+[3] Y. Zhao, et al. TBIOCAS, 2020. [4] S. Huang, et al. JSSC, 2020.
+[5] G. O’Leary, et al. JSSC, 2018. [6] N. Wang, et al. TBIOCAS, 2019.
+
+
+
+
+                                                                         Fig. 5 The three models’ structures and accuracy.
+
+
+
+
+Fig. 1 Visualizing the proposed e-G2C pipeline.
+
+
+
+
+                                                                         Fig. 6 The on-chip anomaly threshold adaptation flow and an
+                                                                         illustration of an example achieved a 3.45%-4.00% higher accuracy.
+
+
+
+
+Fig. 2 e-G2C overall architecture.
+                                                                         Fig. 7 Chip photograph, energy breakdown, and measured latency.
+
+
+
+
+Fig. 3 e-G2C processor’s adopted vector-wise sparse algorithm and
+the corresponding activation buffer design.                              Fig. 8 Chip measurements and comparison with recent prior works.
+

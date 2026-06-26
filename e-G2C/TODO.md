@@ -6,10 +6,11 @@
 
 - [x] Verify installed tools: `iverilog`, `vvp`, `pdftotext`, `pdfimages`, `gtkwave`.
 - [x] Add initial project guide, paper notes, implementation plan, TODO, LOG, and BUGFIX.
-- [ ] Extract paper text to `e-G2C/extracted/paper_text.txt`.
-- [ ] Extract page images and key figures to `e-G2C/extracted/`.
-- [ ] Add `e-G2C/extracted/README.md` with extraction commands and file list.
-- [ ] Add figure references to `PAPER_NOTES.md`.
+- [x] Extract paper text to `e-G2C/extracted/paper_text.txt`.
+- [x] Extract rendered page images to `e-G2C/extracted/pages/` for local inspection.
+- [x] Add `e-G2C/extracted/README.md` with extraction commands and file list.
+- [x] Add local page-image references to `PAPER_NOTES.md`.
+- [ ] Crop key figure images from rendered pages if needed during RTL implementation.
 - [ ] Record any external sources before using them for implementation assumptions.
 
 ## P1 -- Skeleton And Arithmetic Milestones

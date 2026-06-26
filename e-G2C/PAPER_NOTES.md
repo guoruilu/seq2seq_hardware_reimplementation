@@ -205,7 +205,30 @@ Use this table whenever the implementation needs a detail that is not explicit i
 | Adaptation intervals | Fig. 6 shows intervals and T-day histogram, but not numeric boundaries | First test uses generated interval boundaries, signed 8-bit score/threshold, 16-bit counters, and integer midpoint truncation | Phase 8 assumption |
 | External sources | References are listed but not yet fetched | If used, record URL, access date, and whether source is primary or secondary before changing implementation assumptions | Required for future research |
 
-## 10. External Research Log
+## 10. Local Figure Lookup
+
+Extracted support files:
+
+| Item | Local path | Notes |
+|---|---|---|
+| Searchable paper text | `e-G2C/extracted/paper_text.txt` | Generated with `pdftotext -layout`; committed |
+| Full page 1 image | `e-G2C/extracted/pages/page_01.png` | Generated locally with `pdftoppm`; ignored by Git |
+| Full page 2 image | `e-G2C/extracted/pages/page_02.png` | Generated locally with `pdftoppm`; ignored by Git |
+
+Figure locations in the rendered page images:
+
+| Figure | Page image | Implementation relevance |
+|---|---|---|
+| Fig. 1 pipeline | `page_01.png` | Detector branch into coarse/precise conversion |
+| Fig. 2 architecture | `page_02.png` | Memory blocks, MAC lanes, controller, adaptation engine |
+| Fig. 3 vector-wise sparsity | `page_02.png` | Sparse normal/PW conv data path |
+| Fig. 4 DW reuse | `page_01.png` | CIR and D-RIR scheduling |
+| Fig. 5 model structures | `page_01.png` | Detector/coarse/precise layer lists |
+| Fig. 6 threshold adaptation | `page_02.png` | Histogram, argmin, threshold update |
+| Fig. 7 chip micrograph | `page_02.png` | Context only; no architecture-level RTL target |
+| Fig. 8 measurements | `page_02.png` | Context only; no ASIC metric claim |
+
+## 11. External Research Log
 
 No external source has been used yet.
 

@@ -15,3 +15,5 @@ Each entry should be 1-3 lines: date, change, current status.
 - 2026-06-26: Added depth-wise convolution golden generation plus `eg2c_dw_conv2d`, `tb_dw`, and `./sim/run_sim.sh dw`. DW target matches Python golden with one kernel element per simulated cycle.
 - 2026-06-26: Added point-wise convolution golden generation plus `eg2c_pw_conv2d`, `tb_pw`, and `./sim/run_sim.sh pw`. PW target uses `cin,cout` 1x1 weights and matches Python golden.
 - 2026-06-26: Added average-pooling golden generation plus `eg2c_avg_pool2d`, `tb_pool`, and `./sim/run_sim.sh pool`. Pool target uses 2x2 stride-2 signed average with truncation toward zero.
+- 2026-06-26: Added `eg2c_dense_pipeline`, `tb_pipeline_dense`, and `./sim/run_sim.sh pipeline_dense` for an instruction-driven CONV -> POOL -> DONE dense toy pipeline. The generated `instr.hex` and `target.json` document the simulation opcode stream.
+- 2026-06-26: Fixed a function-hidden vector sensitivity issue exposed by `pipeline_dense`; documented it as BUGFIX #001. Full current regression through `pipeline_dense` passes.

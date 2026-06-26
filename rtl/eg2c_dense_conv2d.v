@@ -85,7 +85,7 @@ module eg2c_dense_conv2d #(
         end
     endfunction
 
-    always @(*) begin
+    always @(out_y_q or out_x_q or out_c_q or ker_y_q or ker_x_q or in_c_q or acc_q or input_act_i or weight_i) begin
         in_y = out_y_q + ker_y_q - PAD_H;
         in_x = out_x_q + ker_x_q - PAD_W;
         act_value = {DATA_W{1'b0}};

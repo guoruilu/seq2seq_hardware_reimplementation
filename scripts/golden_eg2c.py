@@ -280,9 +280,123 @@ def gen_pool(build_dir: Path) -> None:
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
 
+def dense_conv_same(
+    input_act: list[int],
+    weights: list[int],
+    in_h: int,
+    in_w: int,
+    in_c: int,
+    out_c: int,
+    k_h: int,
+    k_w: int,
+    pad_h: int,
+    pad_w: int,
+) -> list[int]:
+    output: list[int] = []
+    for oy in range(in_h):
+        for ox in range(in_w):
+            for oc in range(out_c):
+                acc = 0
+                for ky in range(k_h):
+                    for kx in range(k_w):
+                        iy = oy + ky - pad_h
+                        ix = ox + kx - pad_w
+                        for ic in range(in_c):
+                            if 0 <= iy < in_h and 0 <= ix < in_w:
+                                act_idx = (iy * in_w + ix) * in_c + ic
+                                weight_idx = (((ky * k_w + kx) * in_c + ic) * out_c) + oc
+                                acc += input_act[act_idx] * weights[weight_idx]
+                output.append(sat_int8(acc))
+    return output
+
+
+def avg_pool2d(
+    input_act: list[int],
+    in_h: int,
+    in_w: int,
+    channels: int,
+    pool_h: int,
+    pool_w: int,
+    stride_h: int,
+    stride_w: int,
+    out_h: int,
+    out_w: int,
+) -> list[int]:
+    output: list[int] = []
+    for oy in range(out_h):
+        for ox in range(out_w):
+            for ch in range(channels):
+                acc = 0
+                for py in range(pool_h):
+                    for px in range(pool_w):
+                        iy = oy * stride_h + py
+                        ix = ox * stride_w + px
+                        act_idx = (iy * in_w + ix) * channels + ch
+                        acc += input_act[act_idx]
+                output.append(sat_int8(div_trunc_toward_zero(acc, pool_h * pool_w)))
+    return output
+
+
+def gen_pipeline_dense(build_dir: Path) -> None:
+    in_h = 4
+    in_w = 4
+    in_c = 2
+    conv_out_c = 3
+    pool_out_h = 2
+    pool_out_w = 2
+    k_h = 3
+    k_w = 3
+    pad_h = 1
+    pad_w = 1
+
+    input_count = in_h * in_w * in_c
+    weight_count = k_h * k_w * in_c * conv_out_c
+
+    input_act = [((idx * 13 + 2) % 29) - 14 for idx in range(input_count)]
+    weights = [((idx * 5 + 8) % 15) - 7 for idx in range(weight_count)]
+    conv_output = dense_conv_same(input_act, weights, in_h, in_w, in_c, conv_out_c, k_h, k_w, pad_h, pad_w)
+    expected = avg_pool2d(conv_output, in_h, in_w, conv_out_c, 2, 2, 2, 2, pool_out_h, pool_out_w)
+    instr = [0x01000000, 0x04000000, 0xFF000000, 0x00000000]
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "input_act.hex", input_act)
+    write_hex(build_dir / "weights.hex", weights)
+    write_hex(build_dir / "expected.hex", expected)
+    (build_dir / "instr.hex").write_text("".join(f"{word:08x}\n" for word in instr), encoding="ascii")
+
+    target = {
+        "target": "pipeline_dense",
+        "operation": "instruction_driven_dense_pipeline",
+        "program": [
+            {"pc": 0, "opcode": "CONV", "encoding": "0x01000000"},
+            {"pc": 1, "opcode": "POOL", "encoding": "0x04000000"},
+            {"pc": 2, "opcode": "DONE", "encoding": "0xff000000"},
+            {"pc": 3, "opcode": "NOP", "encoding": "0x00000000"},
+        ],
+        "shape": {
+            "input": {"h": in_h, "w": in_w, "c": in_c},
+            "conv_output": {"h": in_h, "w": in_w, "c": conv_out_c},
+            "pipeline_output": {"h": pool_out_h, "w": pool_out_w, "c": conv_out_c},
+        },
+        "layout": {
+            "activation": "NHWC",
+            "conv_weight": "kh,kw,cin,cout",
+            "flattening": "last dimension contiguous",
+        },
+        "arithmetic": {
+            "activation": "signed int8 two's-complement",
+            "weight": "signed int8 two's-complement",
+            "accumulator": "signed int32",
+            "output": "signed int8 saturated after each layer",
+        },
+        "expected_cycles": 912,
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", choices=["conv", "dw", "pw", "pool"])
+    parser.add_argument("target", choices=["conv", "dw", "pw", "pool", "pipeline_dense"])
     parser.add_argument("--build-dir", required=True, type=Path)
     args = parser.parse_args()
 
@@ -294,6 +408,8 @@ def main() -> None:
         gen_pw(args.build_dir)
     elif args.target == "pool":
         gen_pool(args.build_dir)
+    elif args.target == "pipeline_dense":
+        gen_pipeline_dense(args.build_dir)
 
 
 if __name__ == "__main__":

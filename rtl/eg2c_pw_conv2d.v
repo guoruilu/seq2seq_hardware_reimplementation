@@ -75,7 +75,7 @@ module eg2c_pw_conv2d #(
         end
     endfunction
 
-    always @(*) begin
+    always @(out_y_q or out_x_q or out_c_q or in_c_q or acc_q or input_act_i or weight_i) begin
         act_value = get_act(out_y_q, out_x_q, in_c_q);
         weight_value = get_weight(in_c_q, out_c_q);
         product_value = act_value * weight_value;

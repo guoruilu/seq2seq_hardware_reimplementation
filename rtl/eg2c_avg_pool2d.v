@@ -70,7 +70,7 @@ module eg2c_avg_pool2d #(
         end
     endfunction
 
-    always @(*) begin
+    always @(out_y_q or out_x_q or ch_q or pool_y_q or pool_x_q or acc_q or input_act_i) begin
         in_y = out_y_q * STRIDE_H + pool_y_q;
         in_x = out_x_q * STRIDE_W + pool_x_q;
         act_value = get_act(in_y, in_x, ch_q);

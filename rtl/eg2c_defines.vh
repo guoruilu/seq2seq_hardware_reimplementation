@@ -21,6 +21,11 @@
 
 // Minimal simulation opcodes. The complete instruction format is defined later.
 `define EG2C_OP_NOP         8'h00
+`define EG2C_OP_CONV        8'h01
+`define EG2C_OP_DW          8'h02
+`define EG2C_OP_PW          8'h03
+`define EG2C_OP_POOL        8'h04
+`define EG2C_OP_THRESHOLD   8'h05
 `define EG2C_OP_DONE        8'hff
 
 // Controller states exposed for smoke/debug tests.

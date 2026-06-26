@@ -36,7 +36,7 @@
 
 ## P2.5 -- Instruction Pipeline
 
-- [ ] Implement instruction-driven dense toy pipeline: `./sim/run_sim.sh pipeline_dense`.
+- [x] Implement instruction-driven dense toy pipeline: `./sim/run_sim.sh pipeline_dense`.
 
 ## P3 -- e-G2C Features
 

@@ -14,3 +14,4 @@ Each entry should be 1-3 lines: date, change, current status.
 - 2026-06-26: Added deterministic Python golden generation plus `eg2c_dense_conv2d`, `tb_conv`, and `./sim/run_sim.sh conv` for the first dense normal-convolution baseline. Conv target uses NHWC activations, `kh,kw,cin,cout` weights, explicit zero padding, signed int8 data/weights, int32 accumulation, and saturated int8 output.
 - 2026-06-26: Added depth-wise convolution golden generation plus `eg2c_dw_conv2d`, `tb_dw`, and `./sim/run_sim.sh dw`. DW target matches Python golden with one kernel element per simulated cycle.
 - 2026-06-26: Added point-wise convolution golden generation plus `eg2c_pw_conv2d`, `tb_pw`, and `./sim/run_sim.sh pw`. PW target uses `cin,cout` 1x1 weights and matches Python golden.
+- 2026-06-26: Added average-pooling golden generation plus `eg2c_avg_pool2d`, `tb_pool`, and `./sim/run_sim.sh pool`. Pool target uses 2x2 stride-2 signed average with truncation toward zero.

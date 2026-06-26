@@ -32,7 +32,7 @@
 - [x] Implement dense normal conv toy test: `./sim/run_sim.sh conv`.
 - [x] Implement dense depth-wise conv toy test: `./sim/run_sim.sh dw`.
 - [x] Implement dense point-wise conv toy test: `./sim/run_sim.sh pw`.
-- [ ] Implement average-pooling toy test: `./sim/run_sim.sh pool`.
+- [x] Implement average-pooling toy test: `./sim/run_sim.sh pool`.
 
 ## P2.5 -- Instruction Pipeline
 

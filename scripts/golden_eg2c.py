@@ -215,9 +215,74 @@ def gen_pw(build_dir: Path) -> None:
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
 
+def div_trunc_toward_zero(value: int, divisor: int) -> int:
+    sign = -1 if value < 0 else 1
+    return sign * (abs(value) // divisor)
+
+
+def gen_pool(build_dir: Path) -> None:
+    in_h = 4
+    in_w = 4
+    channels = 3
+    pool_h = 2
+    pool_w = 2
+    stride_h = 2
+    stride_w = 2
+    out_h = 2
+    out_w = 2
+
+    input_count = in_h * in_w * channels
+    input_act = [((idx * 11 + 5) % 31) - 15 for idx in range(input_count)]
+    expected: list[int] = []
+
+    for oy in range(out_h):
+        for ox in range(out_w):
+            for ch in range(channels):
+                acc = 0
+                for py in range(pool_h):
+                    for px in range(pool_w):
+                        iy = oy * stride_h + py
+                        ix = ox * stride_w + px
+                        act_idx = (iy * in_w + ix) * channels + ch
+                        acc += input_act[act_idx]
+                expected.append(sat_int8(div_trunc_toward_zero(acc, pool_h * pool_w)))
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "input_act.hex", input_act)
+    write_hex(build_dir / "weights.hex", [])
+    write_hex(build_dir / "expected.hex", expected)
+
+    target = {
+        "target": "pool",
+        "operation": "avg_pool2d",
+        "shape": {
+            "input": {"h": in_h, "w": in_w, "c": channels},
+            "pool": {"h": pool_h, "w": pool_w},
+            "output": {"h": out_h, "w": out_w, "c": channels},
+        },
+        "layout": {
+            "activation": "NHWC",
+            "flattening": "last dimension contiguous",
+        },
+        "arithmetic": {
+            "activation": "signed int8 two's-complement",
+            "accumulator": "signed int32",
+            "division": "integer divide truncating toward zero",
+            "output": "signed int8 saturated from averaged accumulator",
+        },
+        "pooling": {
+            "type": "average",
+            "stride": {"h": stride_h, "w": stride_w},
+            "padding": {"mode": "none"},
+        },
+        "expected_cycles": out_h * out_w * channels * pool_h * pool_w,
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", choices=["conv", "dw", "pw"])
+    parser.add_argument("target", choices=["conv", "dw", "pw", "pool"])
     parser.add_argument("--build-dir", required=True, type=Path)
     args = parser.parse_args()
 
@@ -227,6 +292,8 @@ def main() -> None:
         gen_dw(args.build_dir)
     elif args.target == "pw":
         gen_pw(args.build_dir)
+    elif args.target == "pool":
+        gen_pool(args.build_dir)
 
 
 if __name__ == "__main__":

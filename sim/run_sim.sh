@@ -15,6 +15,7 @@ Targets:
   conv     Verify dense 3x3 normal convolution against Python golden output
   dw       Verify dense 3x3 depth-wise convolution against Python golden output
   pw       Verify dense 1x1 point-wise convolution against Python golden output
+  pool     Verify average pooling against Python golden output
 
 Options:
   wave     Also write sim/build/<target>/wave.vcd when supported
@@ -42,6 +43,9 @@ case "$target" in
     pw)
         tb_file="$root_dir/tb/tb_pw.v"
         ;;
+    pool)
+        tb_file="$root_dir/tb/tb_pool.v"
+        ;;
     *)
         echo "Unknown target: $target" >&2
         usage >&2
@@ -59,7 +63,7 @@ build_dir="$root_dir/sim/build/$target"
 mkdir -p "$build_dir"
 
 case "$target" in
-    conv|dw|pw)
+    conv|dw|pw|pool)
         python3 "$root_dir/scripts/golden_eg2c.py" "$target" --build-dir "$build_dir"
         ;;
 esac
@@ -76,6 +80,7 @@ rtl_files=(
     "$root_dir/rtl/eg2c_dense_conv2d.v"
     "$root_dir/rtl/eg2c_dw_conv2d.v"
     "$root_dir/rtl/eg2c_pw_conv2d.v"
+    "$root_dir/rtl/eg2c_avg_pool2d.v"
     "$root_dir/rtl/eg2c_controller.v"
     "$root_dir/rtl/eg2c_top.v"
 )

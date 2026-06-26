@@ -22,8 +22,8 @@
 - [x] Implement MAC lane and MAC array.
 - [x] Add `sim/run_sim.sh` with `smoke` and `wave` support.
 - [x] Run `./sim/run_sim.sh smoke`.
-- [ ] Add `mac` target to `sim/run_sim.sh`.
-- [ ] Run `./sim/run_sim.sh mac`.
+- [x] Add `mac` target to `sim/run_sim.sh`.
+- [x] Run `./sim/run_sim.sh mac`.
 
 ## P2 -- Dense Operation Baseline
 

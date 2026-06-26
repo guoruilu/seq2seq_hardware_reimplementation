@@ -11,6 +11,7 @@ Usage: ./sim/run_sim.sh <target> [wave]
 
 Targets:
   smoke    Compile the minimal e-G2C RTL shell and run the smoke test
+  mac      Verify signed MAC lane and 32-lane MAC array arithmetic
 
 Options:
   wave     Also write sim/build/<target>/wave.vcd when supported
@@ -25,6 +26,9 @@ fi
 case "$target" in
     smoke)
         tb_file="$root_dir/tb/tb_smoke.v"
+        ;;
+    mac)
+        tb_file="$root_dir/tb/tb_mac.v"
         ;;
     *)
         echo "Unknown target: $target" >&2

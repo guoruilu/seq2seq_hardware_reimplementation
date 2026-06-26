@@ -55,3 +55,9 @@
 - [x] Keep generated files under `sim/build/` or `e-G2C/extracted/`.
 - [x] Add generated artifact manifests and manifest validation to the simulation flow.
 - [x] Record implementation bugs in `BUGFIX.md`.
+
+## P5 -- Beginner Explanation
+
+- [ ] Write a beginner-oriented explanation for readers who know basic FPGA/SPI/FSM work but not neural-network accelerators.
+- [ ] Cover the concepts flagged by the independent checks: e-G2C system path, tensor/weight/channel basics, data layout, `eg2c_integrated_top` versus `eg2c_top`, architecture-level limitations, and the Python-golden simulation flow.
+- [ ] Review the explanation with independent documentation, RTL/architecture, and verification-flow subagents before marking it complete.

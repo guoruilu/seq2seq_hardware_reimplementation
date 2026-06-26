@@ -31,7 +31,7 @@
 - [x] Implement Python generator/golden contract under `scripts/`.
 - [x] Implement dense normal conv toy test: `./sim/run_sim.sh conv`.
 - [x] Implement dense depth-wise conv toy test: `./sim/run_sim.sh dw`.
-- [ ] Implement dense point-wise conv toy test: `./sim/run_sim.sh pw`.
+- [x] Implement dense point-wise conv toy test: `./sim/run_sim.sh pw`.
 - [ ] Implement average-pooling toy test: `./sim/run_sim.sh pool`.
 
 ## P2.5 -- Instruction Pipeline

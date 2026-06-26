@@ -9,6 +9,7 @@ Current executable flow:
 ./sim/run_sim.sh mac
 ./sim/run_sim.sh conv
 ./sim/run_sim.sh dw
+./sim/run_sim.sh pw
 ```
 
 `golden_eg2c.py` writes deterministic `sim/build/<target>/` artifacts:

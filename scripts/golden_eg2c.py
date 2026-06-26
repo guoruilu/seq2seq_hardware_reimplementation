@@ -157,9 +157,67 @@ def gen_dw(build_dir: Path) -> None:
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
 
+def gen_pw(build_dir: Path) -> None:
+    in_h = 4
+    in_w = 4
+    in_c = 4
+    out_c = 5
+
+    input_count = in_h * in_w * in_c
+    weight_count = in_c * out_c
+
+    input_act = [((idx * 7 + 1) % 23) - 11 for idx in range(input_count)]
+    weights = [((idx * 3 + 6) % 13) - 6 for idx in range(weight_count)]
+    expected: list[int] = []
+
+    for oy in range(in_h):
+        for ox in range(in_w):
+            for oc in range(out_c):
+                acc = 0
+                for ic in range(in_c):
+                    act_idx = (oy * in_w + ox) * in_c + ic
+                    weight_idx = ic * out_c + oc
+                    acc += input_act[act_idx] * weights[weight_idx]
+                expected.append(sat_int8(acc))
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "input_act.hex", input_act)
+    write_hex(build_dir / "weights.hex", weights)
+    write_hex(build_dir / "expected.hex", expected)
+
+    target = {
+        "target": "pw",
+        "operation": "pointwise_conv2d",
+        "shape": {
+            "input": {"h": in_h, "w": in_w, "c": in_c},
+            "kernel": {"h": 1, "w": 1},
+            "output": {"h": in_h, "w": in_w, "c": out_c},
+        },
+        "layout": {
+            "activation": "NHWC",
+            "weight": "cin,cout",
+            "flattening": "last dimension contiguous",
+        },
+        "arithmetic": {
+            "activation": "signed int8 two's-complement",
+            "weight": "signed int8 two's-complement",
+            "accumulator": "signed int32",
+            "output": "signed int8 saturated from accumulator",
+            "scale_zero_point": None,
+        },
+        "convolution": {
+            "stride": {"h": 1, "w": 1},
+            "padding": {"mode": "none"},
+            "activation_function": "linear",
+        },
+        "expected_cycles": in_h * in_w * out_c * in_c,
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", choices=["conv", "dw"])
+    parser.add_argument("target", choices=["conv", "dw", "pw"])
     parser.add_argument("--build-dir", required=True, type=Path)
     args = parser.parse_args()
 
@@ -167,6 +225,8 @@ def main() -> None:
         gen_conv(args.build_dir)
     elif args.target == "dw":
         gen_dw(args.build_dir)
+    elif args.target == "pw":
+        gen_pw(args.build_dir)
 
 
 if __name__ == "__main__":

@@ -91,7 +91,8 @@ Planned RTL files:
 | `rtl/eg2c_sparse_vector_mac.v` | Architecture-level sparse vector MAC with active/skip counters |
 | `rtl/eg2c_adapt_engine.v` | Threshold adaptation histogram, lower-index argmin tie-break, threshold midpoint update, saturating counters, and counter reset |
 | `rtl/eg2c_controller.v` | Current smoke/top-shell instruction walker with invalid-opcode and instruction-bound error reporting; operation-specific dense scheduling is in `eg2c_dense_pipeline.v` |
-| `rtl/eg2c_top.v` | Current memory/controller smoke shell; full integrated toy top remains future work |
+| `rtl/eg2c_top.v` | Memory/controller smoke shell used by `smoke` |
+| `rtl/eg2c_integrated_top.v` | Architecture-level toy integration of detector thresholding, coarse/precise dense converter paths, and optional threshold adaptation |
 
 The first milestone may combine some modules if that keeps the code easier to verify. If modules are split later, the guide must be updated.
 
@@ -132,7 +133,7 @@ Each stage gets a small test before integration:
 | Sparse PW Conv | Python golden for dense-equivalent output plus active/skip counters |
 | Sparse selector | compressed vector result equals dense result |
 | Adaptation engine | histogram, ignored out-of-range samples, argmin, threshold update, held-start behavior, update/sample coincidence, saturation, and restart behavior match Python golden/test expectations |
-| Top pipeline | toy detector chooses coarse/precise path correctly |
+| Top pipeline | detector chooses coarse/precise converter path, optional adaptation updates threshold state, and converter/error status matches Python golden expectations |
 
 The pass condition is always printed by the testbench as a mismatch count.
 
@@ -153,8 +154,8 @@ The milestone order is:
 | Sparse point-wise conv | `./sim/run_sim.sh pw_sparse` |
 | DW reuse lane schedules | `./sim/run_sim.sh dw_reuse` |
 | Threshold adaptation | `./sim/run_sim.sh adapt` |
+| Integrated toy system | `./sim/run_sim.sh top` |
 | Full implemented regression | `./sim/run_sim.sh all` |
-| Integrated toy system | planned: `./sim/run_sim.sh top` |
 
 Generated test data goes under `sim/build/<target>/`. Hex file formats and PASS/FAIL rules are defined in `IMPLEMENTATION_PLAN.md`.
 

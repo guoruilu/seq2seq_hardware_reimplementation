@@ -963,6 +963,229 @@ def gen_adapt(build_dir: Path) -> None:
     (build_dir / "adapt_target.json").write_text(encoded, encoding="ascii")
 
 
+def gen_top(build_dir: Path) -> None:
+    in_h = 4
+    in_w = 4
+    in_c = 2
+    conv_out_c = 3
+    pool_out_h = 2
+    pool_out_w = 2
+    k_h = 3
+    k_w = 3
+    pad_h = 1
+    pad_w = 1
+    instr_count = 4
+    adapt_interval_count = 8
+    adapt_score_max = 8
+    boundaries = [-64, -48, -32, -16, 0, 16, 32, 48, 64]
+
+    input_count = in_h * in_w * in_c
+    weight_count = k_h * k_w * in_c * conv_out_c
+    output_count = pool_out_h * pool_out_w * conv_out_c
+    converter_cycles = in_h * in_w * conv_out_c * k_h * k_w * in_c
+    converter_cycles += pool_out_h * pool_out_w * conv_out_c * 2 * 2
+
+    input_act = [((idx * 7 + 9) % 31) - 15 for idx in range(input_count)]
+    coarse_weights = [((idx * 5 + 3) % 13) - 6 for idx in range(weight_count)]
+    precise_weights = [((idx * 11 + 1) % 17) - 8 for idx in range(weight_count)]
+
+    coarse_conv = dense_conv_same(input_act, coarse_weights, in_h, in_w, in_c, conv_out_c, k_h, k_w, pad_h, pad_w)
+    precise_conv = dense_conv_same(input_act, precise_weights, in_h, in_w, in_c, conv_out_c, k_h, k_w, pad_h, pad_w)
+    coarse_output = avg_pool2d(coarse_conv, in_h, in_w, conv_out_c, 2, 2, 2, 2, pool_out_h, pool_out_w)
+    precise_output = avg_pool2d(precise_conv, in_h, in_w, conv_out_c, 2, 2, 2, 2, pool_out_h, pool_out_w)
+    zero_output = [0 for _ in range(output_count)]
+
+    normal_program = [0x01000000, 0x04000000, 0xFF000000, 0x00000000]
+    illegal_program = [0x7E000000, 0xFF000000, 0x00000000, 0x00000000]
+    cases = [
+        {
+            "name": "normal_coarse_path",
+            "score": 5,
+            "threshold": 20,
+            "adapt_enable": 0,
+            "adapt_initial_threshold": 20,
+            "adapt_scores": [],
+            "coarse_program": normal_program,
+            "precise_program": normal_program,
+            "expected_error": 0,
+        },
+        {
+            "name": "abnormal_precise_path_with_adaptation",
+            "score": 35,
+            "threshold": 20,
+            "adapt_enable": 1,
+            "adapt_initial_threshold": 7,
+            "adapt_scores": [-64, -48, -32, -16, 0, 16, 64, 65],
+            "coarse_program": normal_program,
+            "precise_program": normal_program,
+            "expected_error": 0,
+        },
+        {
+            "name": "precise_path_illegal_opcode",
+            "score": 42,
+            "threshold": 20,
+            "adapt_enable": 0,
+            "adapt_initial_threshold": 20,
+            "adapt_scores": [],
+            "coarse_program": normal_program,
+            "precise_program": illegal_program,
+            "expected_error": 1,
+        },
+    ]
+
+    coarse_instr: list[int] = []
+    precise_instr: list[int] = []
+    flat_adapt_scores: list[int] = []
+    expected: list[int] = []
+    expected_status: list[int] = []
+    expected_histogram: list[int] = []
+    case_summaries = []
+
+    for case_idx, case in enumerate(cases):
+        expected_path = int(case["score"] >= case["threshold"])
+        coarse_instr.extend(case["coarse_program"])
+        precise_instr.extend(case["precise_program"])
+
+        padded_scores = list(case["adapt_scores"])
+        if len(padded_scores) > adapt_score_max:
+            raise ValueError(f"top case {case['name']} exceeds ADAPT_SCORE_MAX")
+        padded_scores.extend([0 for _ in range(adapt_score_max - len(padded_scores))])
+        flat_adapt_scores.extend(padded_scores)
+
+        histogram = [0 for _ in range(adapt_interval_count)]
+        ignored = 0
+        accepted = 0
+        selected_interval = 0
+        threshold_out = case["threshold"]
+        adapt_done = 0
+        if case["adapt_enable"]:
+            adapt_done = 1
+            for score in case["adapt_scores"]:
+                interval = _adapt_interval_for_score(score, boundaries)
+                if interval is None:
+                    ignored += 1
+                else:
+                    histogram[interval] += 1
+            accepted = sum(histogram)
+            selected_interval = next(idx for idx, count in enumerate(histogram) if count == min(histogram))
+            threshold_out = _adapt_midpoint(boundaries[selected_interval], boundaries[selected_interval + 1])
+
+        if case["expected_error"]:
+            expected_output = zero_output
+            expected_ops = 0
+            expected_cycles = 0
+        elif expected_path:
+            expected_output = precise_output
+            expected_ops = 2
+            expected_cycles = converter_cycles
+        else:
+            expected_output = coarse_output
+            expected_ops = 2
+            expected_cycles = converter_cycles
+
+        expected.extend(expected_output)
+        expected_histogram.extend(histogram)
+        expected_status.extend(
+            [
+                case["expected_error"],
+                expected_path,
+                expected_ops,
+                expected_cycles,
+                0,  # integrated top currently exercises dense converter paths, so sparse skips are zero
+                adapt_done,
+                threshold_out,
+                accepted + ignored,
+                ignored,
+                selected_interval,
+            ]
+        )
+        case_summaries.append(
+            {
+                "case": case_idx,
+                "name": case["name"],
+                "score": case["score"],
+                "threshold": case["threshold"],
+                "expected_path": "precise" if expected_path else "coarse",
+                "adapt_enable": bool(case["adapt_enable"]),
+                "adapt_score_count": len(case["adapt_scores"]),
+                "adapt_accepted_samples": accepted,
+                "adapt_ignored_samples": ignored,
+                "adapt_selected_interval": selected_interval,
+                "threshold_out": threshold_out,
+                "expected_error": case["expected_error"],
+                "expected_ops": expected_ops,
+                "expected_converter_cycles": expected_cycles,
+                "expected_sparse_skipped": 0,
+            }
+        )
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "input_act.hex", input_act)
+    write_hex(build_dir / "coarse_weights.hex", coarse_weights)
+    write_hex(build_dir / "precise_weights.hex", precise_weights)
+    write_hex32(build_dir / "coarse_instr.hex", coarse_instr)
+    write_hex32(build_dir / "precise_instr.hex", precise_instr)
+    write_hex(build_dir / "scores.hex", [case["score"] for case in cases])
+    write_hex(build_dir / "thresholds.hex", [case["threshold"] for case in cases])
+    write_hex(build_dir / "adapt_initial_thresholds.hex", [case["adapt_initial_threshold"] for case in cases])
+    (build_dir / "adapt_enable.bin").write_text(
+        "".join(f"{case['adapt_enable']:b}\n" for case in cases),
+        encoding="ascii",
+    )
+    write_hex32(build_dir / "adapt_lengths.hex", [len(case["adapt_scores"]) for case in cases])
+    write_hex(build_dir / "adapt_scores.hex", flat_adapt_scores)
+    write_hex(build_dir / "boundaries.hex", boundaries)
+    write_hex(build_dir / "expected.hex", expected)
+    write_hex32(build_dir / "expected_status.hex", expected_status)
+    write_hex32(build_dir / "expected_histogram.hex", expected_histogram)
+
+    target = {
+        "target": "top",
+        "operation": "integrated_detector_branch_converter_adaptation_toy_system",
+        "case_count": len(cases),
+        "instr_count_per_case": instr_count,
+        "shape": {
+            "input": {"h": in_h, "w": in_w, "c": in_c},
+            "converter_output": {"h": pool_out_h, "w": pool_out_w, "c": conv_out_c},
+        },
+        "layout": {
+            "activation": "NHWC",
+            "conv_weight": "kh,kw,cin,cout",
+            "flattening": "last dimension contiguous",
+        },
+        "arithmetic": {
+            "score": "signed int8 two's-complement",
+            "threshold": "signed int8 two's-complement",
+            "activation": "signed int8 two's-complement",
+            "weight": "signed int8 two's-complement",
+            "output": "signed int8 saturated after each converter layer",
+        },
+        "branch_rule": "score >= threshold selects the precise/abnormal converter path; otherwise the coarse/normal path",
+        "adaptation": {
+            "mode": "optional co-running threshold update for future windows",
+            "interval_rule": "lower bound inclusive, upper bound exclusive, except the last interval includes its upper bound",
+            "argmin_tie_rule": "select the lowest interval index among equal minimum counters",
+            "midpoint_rule": "integer midpoint truncating toward zero",
+            "boundaries": boundaries,
+        },
+        "status_hex_fields_per_case": [
+            "expected_error",
+            "expected_path_precise",
+            "expected_converter_ops",
+            "expected_converter_cycles",
+            "expected_sparse_skipped",
+            "expected_adapt_done",
+            "expected_threshold_out",
+            "expected_adapt_total_samples",
+            "expected_adapt_ignored_samples",
+            "expected_adapt_selected_interval",
+        ],
+        "cases": case_summaries,
+        "scope_note": "Architecture-level integration of existing detector branch, dense converter pipelines, and threshold adaptation. Sparse skip reporting is plumbed and remains zero in this dense top target.",
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
+
+
 def gen_sparse(build_dir: Path) -> None:
     act_count = 16
     vec_count = 5
@@ -1229,6 +1452,7 @@ def main() -> None:
             "pipeline_dense",
             "branch",
             "adapt",
+            "top",
             "sparse",
             "conv_sparse",
             "pw_sparse",
@@ -1252,6 +1476,8 @@ def main() -> None:
         gen_branch(args.build_dir)
     elif args.target == "adapt":
         gen_adapt(args.build_dir)
+    elif args.target == "top":
+        gen_top(args.build_dir)
     elif args.target == "sparse":
         gen_sparse(args.build_dir)
     elif args.target == "conv_sparse":

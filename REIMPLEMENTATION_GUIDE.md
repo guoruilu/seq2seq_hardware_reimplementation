@@ -94,6 +94,14 @@ Initial targets should be small and fast:
 - Threshold adaptation tests.
 - Top-level toy pipeline tests.
 
+The current implemented full regression is:
+
+```bash
+./sim/run_sim.sh all
+```
+
+It includes the architecture-level integrated top target.
+
 Waveform support is useful but not required for every run. If a test supports waves, use a `wave` option and generate a VCD file under `build/` or `sim/build/`.
 
 ## 6. Documentation Style

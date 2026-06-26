@@ -18,6 +18,7 @@ implemented_targets=(
     pw_sparse
     dw_reuse
     adapt
+    top
 )
 
 usage() {
@@ -42,6 +43,7 @@ Targets:
            Verify sparse-weight vector skipping inside point-wise-conv scheduling
   dw_reuse Verify DW simple/CIR/D-RIR lane schedules and counters
   adapt   Verify threshold adaptation histogram, argmin, and update flow
+  top     Verify integrated detector, converter branch, and adaptation toy flow
 
 Options:
   wave, --wave
@@ -112,6 +114,9 @@ case "$target" in
     adapt)
         tb_file="$root_dir/tb/tb_adapt.v"
         ;;
+    top)
+        tb_file="$root_dir/tb/tb_top.v"
+        ;;
     *)
         echo "Unknown target: $target" >&2
         usage >&2
@@ -125,7 +130,7 @@ mkdir -p "$build_dir"
 cd "$root_dir"
 
 case "$target" in
-    conv|dw|pw|pool|pipeline_dense|branch|adapt|sparse|conv_sparse|pw_sparse|dw_reuse)
+    conv|dw|pw|pool|pipeline_dense|branch|adapt|top|sparse|conv_sparse|pw_sparse|dw_reuse)
         python3 "$root_dir/scripts/golden_eg2c.py" "$target" --build-dir "$build_dir"
         python3 "$root_dir/scripts/validate_manifest.py" "$build_dir"
         ;;
@@ -152,6 +157,7 @@ rtl_files=(
     "$root_dir/rtl/eg2c_dw_reuse_conv2d.v"
     "$root_dir/rtl/eg2c_controller.v"
     "$root_dir/rtl/eg2c_top.v"
+    "$root_dir/rtl/eg2c_integrated_top.v"
 )
 
 iverilog -Wall -g2012 -I"$root_dir/rtl" -o "$build_dir/sim.vvp" "${rtl_files[@]}" "$tb_file"

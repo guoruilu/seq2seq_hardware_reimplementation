@@ -87,7 +87,7 @@ Milestones are intentionally small. Do not skip ahead to a full pipeline before 
 | M7 | `./sim/run_sim.sh adapt` | threshold adaptation engine matches Python golden |
 | M8 | `./sim/run_sim.sh top` | integrated e-G2C toy system passes normal and abnormal scenarios |
 
-`./sim/run_sim.sh all` runs every currently implemented target through M7. M8 is a planned command and should appear in the script usage only after implementation.
+`./sim/run_sim.sh all` runs every currently implemented target through M8.
 
 ## Phase 0 -- Setup And Paper Extraction
 
@@ -406,14 +406,25 @@ Goal:
   - coarse or precise converter;
   - optional threshold adaptation update.
 
-Tasks:
-- Build one top-level testbench.
-- Generate all memories from one Python script.
-- Print:
+Implemented scope:
+- `rtl/eg2c_integrated_top.v` connects:
+  - `eg2c_detector_branch` for signed score-vs-threshold path selection;
+  - one coarse and one precise `eg2c_dense_pipeline`, with only the selected path started;
+  - `eg2c_adapt_engine` for an optional co-running threshold update for future windows.
+- `tb/tb_top.v` runs three generated cases:
+  - normal/coarse path;
+  - abnormal/precise path with threshold adaptation;
+  - abnormal/precise path with an illegal converter opcode.
+- `scripts/golden_eg2c.py top` writes all memory/control images and expected status files under `sim/build/top/`.
+- The top target prints:
   - selected path;
   - cycle count;
   - sparse skipped count;
   - output mismatch count.
+
+Current limitation:
+- The integrated top target uses dense converter paths. Sparse-skip reporting is plumbed and expected to be zero in this target; standalone sparse behavior remains verified by `sparse`, `conv_sparse`, and `pw_sparse`.
+- The legacy `rtl/eg2c_top.v` remains a smoke-shell memory/controller wrapper; `rtl/eg2c_integrated_top.v` is the implemented architecture-level integration target.
 
 Acceptance:
 - `./sim/run_sim.sh top` reports PASS for normal and abnormal scenarios.
@@ -466,6 +477,12 @@ The first integration milestone is:
 ./sim/run_sim.sh pipeline_dense
 ```
 
-It currently runs compact dense toy programs, including CONV -> POOL -> DONE, DONE-only, NOP-prefixed, and illegal-opcode cases, without sparse optimization. Detector/coarse/precise top-level sequencing is reserved for the later `top` target.
+It currently runs compact dense toy programs, including CONV -> POOL -> DONE, DONE-only, NOP-prefixed, and illegal-opcode cases, without sparse optimization.
 
-Sparse mode, the DW reuse lane scheduler, and threshold adaptation were added after the dense pipeline milestone. Sparse weight-vector skipping is now integrated into the standalone normal-conv and point-wise-conv schedulers. DW simple/CIR/D-RIR lane-assignment schedules now run in the standalone `dw_reuse` target. The Fig. 6 adaptation loop now runs in the standalone `adapt` target. Wiring sparse, DW reuse, and adaptation behavior into the future integrated top-level pipeline remains future work.
+The top integration milestone is:
+
+```bash
+./sim/run_sim.sh top
+```
+
+It runs generated normal/coarse, abnormal/precise-with-adaptation, and abnormal/precise-illegal-opcode scenarios through `eg2c_integrated_top`. Sparse mode, the DW reuse lane scheduler, and threshold adaptation were added after the dense pipeline milestone. Sparse weight-vector skipping is integrated into standalone normal-conv and point-wise-conv schedulers; DW simple/CIR/D-RIR lane-assignment schedules run in `dw_reuse`; the Fig. 6 adaptation loop runs in both standalone `adapt` and integrated `top` form.

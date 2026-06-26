@@ -47,7 +47,7 @@
 - [x] Add DW Conv CIR/D-RIR reuse counter baseline.
 - [x] Implement true DW `simple`/`cir`/`d_rir` lane-assignment scheduler.
 - [x] Add threshold adaptation engine.
-- [ ] Add top-level integrated toy system regression: `./sim/run_sim.sh top`.
+- [x] Add top-level integrated toy system regression: `./sim/run_sim.sh top`.
 
 ## P4 -- Cleanup
 

@@ -172,6 +172,7 @@ Architecture-level RTL status:
 - `eg2c_detector_branch.v` compares detector output with the current threshold for coarse/precise path selection.
 - `eg2c_adapt_engine.v` implements the Fig. 6 adaptation loop as one standalone simulation module: interval comparison, saturating histogram counters, lower-index argmin tie-break, threshold midpoint update, and counter reset after update.
 - The `adapt` target verifies generated signed 8-bit score windows, ignored out-of-range samples, pre-reset histogram snapshots, selected intervals, updated thresholds, held-start behavior, update/sample coincidence, saturation, and restart behavior.
+- The `top` target integrates detector thresholding, selected coarse/precise dense converter execution, and optional threshold adaptation in `eg2c_integrated_top.v`. Adaptation updates the threshold output for future windows; the current branch decision uses the input threshold.
 - The test uses generated interval boundaries for the paper's sensitive range concept; the paper does not publish exact numeric boundaries.
 
 ## 8. Known Missing Details
@@ -206,6 +207,7 @@ Use this table whenever the implementation needs a detail that is not explicit i
 | Sparse vector packing | Fig. 3 explains vector-wise sparsity behavior, not exact bit packing | Standalone sparse MAC uses vector-major unsigned 16-bit indices, signed 8-bit sparse weights, and one `vector_valid` bit per sparse vector. Normal/PW conv schedules now use generated `vector_valid` masks for all-zero sparse weight vectors: normal conv groups one kernel row per output channel, PW groups three input-channel weights per output channel. Full top-level compressed index/weight streaming remains future work. | Project-local Phase 6 model |
 | DW reuse exact schedule | Fig. 4 illustrates CIR and D-RIR but not a full cycle table | Implement standalone output-equivalent simple/CIR/D-RIR lane-assignment schedules and per-cycle trace checks; report simulated utilization trends, not exact ASIC cycle claims | Phase 7 model |
 | Adaptation intervals | Fig. 6 shows intervals and T-day histogram, but not numeric boundaries | First test uses generated interval boundaries, signed 8-bit score/threshold, 16-bit counters, and integer midpoint truncation | Phase 8 assumption |
+| Integrated top sequencing | Fig. 1/2 show detector, converters, controller, and adaptation engine but not a full cycle protocol | `eg2c_integrated_top` starts only the selected dense converter path and may run threshold adaptation in parallel for future windows; sparse skip count is reported as zero in this dense top target | Phase 9 model |
 | External sources | References are listed but not yet fetched | If used, record URL, access date, and whether source is primary or secondary before changing implementation assumptions | Required for future research |
 
 ## 10. Local Figure Lookup

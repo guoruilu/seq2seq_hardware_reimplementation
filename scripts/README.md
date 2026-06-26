@@ -19,6 +19,7 @@ Current executable flow:
 ./sim/run_sim.sh pw_sparse
 ./sim/run_sim.sh dw_reuse
 ./sim/run_sim.sh adapt
+./sim/run_sim.sh top
 ```
 
 `golden_eg2c.py` writes deterministic `sim/build/<target>/` artifacts. The project does not currently keep checked-in `data/golden/` fixtures; generated files are verified through `manifest.json` line counts and hashes. Common files are:
@@ -34,6 +35,7 @@ Current executable flow:
 | `instr.hex`, `expected_status.hex` | `pipeline_dense` |
 | `scores.hex`, `thresholds.hex`, `coarse.hex`, `precise.hex`, `expected_path.bin` | `branch` |
 | `scores.hex`, `boundaries.hex`, `initial_thresholds.hex`, `case_lengths.hex`, `expected_histogram.hex`, `expected_stats.hex` | `adapt` |
+| `coarse_weights.hex`, `precise_weights.hex`, `coarse_instr.hex`, `precise_instr.hex`, `adapt_enable.bin`, `adapt_lengths.hex`, `adapt_initial_thresholds.hex`, `adapt_scores.hex`, `boundaries.hex`, `expected_status.hex`, `expected_histogram.hex` | `top` |
 | `indices.hex`, `vector_valid.bin`, `expected_stats.hex` | `sparse` |
 | `vector_valid.bin`, `expected_stats.hex` | `conv_sparse`, `pw_sparse` |
 | `expected_stats.hex`, `simple_trace.hex`, `cir_trace.hex`, `drir_trace.hex` | `dw_reuse` |
@@ -50,5 +52,8 @@ Target-specific field order:
 | `expected_stats.hex` | `dw_reuse` | `simple_cycles`, `cir_cycles`, `drir_cycles`, `simple_active_slots`, `cir_active_slots`, `drir_active_slots`, `simple_idle_slots`, `cir_idle_slots`, `drir_idle_slots` |
 | `expected_stats.hex` | `adapt` | repeated per case: `updated_threshold`, `selected_interval`, `accepted_samples`, `ignored_samples`, `total_samples` |
 | `expected_histogram.hex` | `adapt` | repeated per case: one counter per interval, using the interval order in `boundaries.hex` |
+| `expected_status.hex` | `top` | repeated per case: `expected_error`, `expected_path_precise`, `expected_converter_ops`, `expected_converter_cycles`, `expected_sparse_skipped`, `expected_adapt_done`, `expected_threshold_out`, `expected_adapt_total_samples`, `expected_adapt_ignored_samples`, `expected_adapt_selected_interval` |
+| `expected_histogram.hex` | `top` | repeated per case: one adaptation counter per interval |
 
 For `branch`, `expected.hex` is the selected output vector after applying `expected_path.bin` to choose each case's `coarse.hex` or `precise.hex` vector.
+For `top`, `expected.hex` is the final selected converter output after detector thresholding.

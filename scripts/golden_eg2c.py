@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -23,6 +24,24 @@ def hex_int8(value: int) -> str:
 
 def write_hex(path: Path, values: list[int]) -> None:
     path.write_text("".join(f"{hex_int8(value)}\n" for value in values), encoding="ascii")
+
+
+def write_manifest(build_dir: Path) -> None:
+    files: dict[str, dict[str, int | str]] = {}
+    for path in sorted(build_dir.iterdir()):
+        if not path.is_file() or path.name == "manifest.json":
+            continue
+        data = path.read_bytes()
+        files[path.name] = {
+            "bytes": len(data),
+            "lines": data.count(b"\n"),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
+    manifest = {
+        "format": "eg2c-golden-manifest-v1",
+        "files": files,
+    }
+    (build_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="ascii")
 
 
 def gen_conv(build_dir: Path) -> None:
@@ -355,23 +374,76 @@ def gen_pipeline_dense(build_dir: Path) -> None:
     input_act = [((idx * 13 + 2) % 29) - 14 for idx in range(input_count)]
     weights = [((idx * 5 + 8) % 15) - 7 for idx in range(weight_count)]
     conv_output = dense_conv_same(input_act, weights, in_h, in_w, in_c, conv_out_c, k_h, k_w, pad_h, pad_w)
-    expected = avg_pool2d(conv_output, in_h, in_w, conv_out_c, 2, 2, 2, 2, pool_out_h, pool_out_w)
-    instr = [0x01000000, 0x04000000, 0xFF000000, 0x00000000]
+    expected_normal = avg_pool2d(conv_output, in_h, in_w, conv_out_c, 2, 2, 2, 2, pool_out_h, pool_out_w)
+    output_count = pool_out_h * pool_out_w * conv_out_c
+    zero_output = [0 for _ in range(output_count)]
+    programs = [
+        {
+            "name": "conv_pool_done",
+            "program": [0x01000000, 0x04000000, 0xFF000000, 0x00000000],
+            "expected_output": expected_normal,
+            "expected_error": 0,
+            "expected_ops": 2,
+            "expected_cycles": 912,
+        },
+        {
+            "name": "done_only",
+            "program": [0xFF000000, 0x00000000, 0x00000000, 0x00000000],
+            "expected_output": zero_output,
+            "expected_error": 0,
+            "expected_ops": 0,
+            "expected_cycles": 0,
+        },
+        {
+            "name": "nop_conv_pool_done",
+            "program": [0x00000000, 0x01000000, 0x04000000, 0xFF000000],
+            "expected_output": expected_normal,
+            "expected_error": 0,
+            "expected_ops": 2,
+            "expected_cycles": 912,
+        },
+        {
+            "name": "illegal_opcode",
+            "program": [0x7E000000, 0xFF000000, 0x00000000, 0x00000000],
+            "expected_output": zero_output,
+            "expected_error": 1,
+            "expected_ops": 0,
+            "expected_cycles": 0,
+        },
+    ]
+    instr = [word for case in programs for word in case["program"]]
+    expected = [value for case in programs for value in case["expected_output"]]
+    expected_status = [
+        value
+        for case in programs
+        for value in (case["expected_error"], case["expected_ops"], case["expected_cycles"])
+    ]
 
     build_dir.mkdir(parents=True, exist_ok=True)
     write_hex(build_dir / "input_act.hex", input_act)
     write_hex(build_dir / "weights.hex", weights)
     write_hex(build_dir / "expected.hex", expected)
+    (build_dir / "expected_status.hex").write_text(
+        "".join(f"{value:08x}\n" for value in expected_status),
+        encoding="ascii",
+    )
     (build_dir / "instr.hex").write_text("".join(f"{word:08x}\n" for word in instr), encoding="ascii")
 
     target = {
         "target": "pipeline_dense",
         "operation": "instruction_driven_dense_pipeline",
-        "program": [
-            {"pc": 0, "opcode": "CONV", "encoding": "0x01000000"},
-            {"pc": 1, "opcode": "POOL", "encoding": "0x04000000"},
-            {"pc": 2, "opcode": "DONE", "encoding": "0xff000000"},
-            {"pc": 3, "opcode": "NOP", "encoding": "0x00000000"},
+        "case_count": len(programs),
+        "instr_count_per_case": 4,
+        "programs": [
+            {
+                "case": idx,
+                "name": case["name"],
+                "program": [f"0x{word:08x}" for word in case["program"]],
+                "expected_error": case["expected_error"],
+                "expected_ops": case["expected_ops"],
+                "expected_cycles": case["expected_cycles"],
+            }
+            for idx, case in enumerate(programs)
         ],
         "shape": {
             "input": {"h": in_h, "w": in_w, "c": in_c},
@@ -405,7 +477,7 @@ def gen_pipeline_dense(build_dir: Path) -> None:
                 "division": "integer divide truncating toward zero",
             },
         ],
-        "expected_cycles": 912,
+        "expected_status_hex_fields": ["expected_error", "expected_ops", "expected_cycles"],
     }
     (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
@@ -643,6 +715,8 @@ def main() -> None:
         gen_sparse(args.build_dir)
     elif args.target == "dw_reuse":
         gen_dw_reuse(args.build_dir)
+
+    write_manifest(args.build_dir)
 
 
 if __name__ == "__main__":

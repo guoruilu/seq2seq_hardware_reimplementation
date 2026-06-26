@@ -37,6 +37,7 @@
 ## P2.5 -- Instruction Pipeline
 
 - [x] Implement instruction-driven dense toy pipeline: `./sim/run_sim.sh pipeline_dense`.
+- [x] Cover DONE-only, NOP-prefixed, and illegal-opcode pipeline programs.
 
 ## P3 -- e-G2C Features
 
@@ -50,6 +51,7 @@
 
 ## P4 -- Cleanup
 
-- [ ] Update project guide with actual RTL module details.
-- [ ] Keep generated files under `sim/build/` or `e-G2C/extracted/`.
+- [x] Update project guide with actual RTL module details.
+- [x] Keep generated files under `sim/build/` or `e-G2C/extracted/`.
+- [x] Add generated artifact manifests and manifest validation to the simulation flow.
 - [x] Record implementation bugs in `BUGFIX.md`.

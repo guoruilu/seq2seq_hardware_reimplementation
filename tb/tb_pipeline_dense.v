@@ -12,6 +12,8 @@ module tb_pipeline_dense;
     localparam integer POOL_OUT_H = 2;
     localparam integer POOL_OUT_W = 2;
     localparam integer INSTR_COUNT = 4;
+    localparam integer CASE_COUNT = 4;
+    localparam integer STATUS_COUNT = 3;
     localparam integer DATA_W = `EG2C_DATA_W;
     localparam integer WEIGHT_W = `EG2C_WEIGHT_W;
     localparam integer INSTR_W = `EG2C_INSTR_W;
@@ -30,15 +32,18 @@ module tb_pipeline_dense;
     wire [7:0] op_count;
     wire [OUTPUT_COUNT*DATA_W-1:0] output_flat;
 
-    reg [INSTR_W-1:0] instr_mem [0:INSTR_COUNT-1];
+    reg [INSTR_W-1:0] instr_mem [0:CASE_COUNT*INSTR_COUNT-1];
     reg [DATA_W-1:0] input_mem [0:INPUT_COUNT-1];
     reg [WEIGHT_W-1:0] weight_mem [0:WEIGHT_COUNT-1];
-    reg [DATA_W-1:0] expected_mem [0:OUTPUT_COUNT-1];
+    reg [DATA_W-1:0] expected_mem [0:CASE_COUNT*OUTPUT_COUNT-1];
+    reg [31:0] expected_status [0:CASE_COUNT*STATUS_COUNT-1];
     reg [INSTR_COUNT*INSTR_W-1:0] instr_flat;
     reg [INPUT_COUNT*DATA_W-1:0] input_flat;
     reg [WEIGHT_COUNT*WEIGHT_W-1:0] weight_flat;
 
     integer idx;
+    integer case_idx;
+    integer status_idx;
     integer mismatches;
     integer cycles_waited;
     reg [DATA_W-1:0] got;
@@ -91,8 +96,9 @@ module tb_pipeline_dense;
         $readmemh("sim/build/pipeline_dense/input_act.hex", input_mem);
         $readmemh("sim/build/pipeline_dense/weights.hex", weight_mem);
         $readmemh("sim/build/pipeline_dense/expected.hex", expected_mem);
+        $readmemh("sim/build/pipeline_dense/expected_status.hex", expected_status);
 
-        for (idx = 0; idx < INSTR_COUNT; idx = idx + 1) begin
+        for (idx = 0; idx < CASE_COUNT*INSTR_COUNT; idx = idx + 1) begin
             if (^instr_mem[idx] === 1'bx) begin
                 $display("ERROR: instr[%0d] has X/Z after load", idx);
                 mismatches = mismatches + 1;
@@ -113,15 +119,18 @@ module tb_pipeline_dense;
             end
         end
 
-        for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
+        for (idx = 0; idx < CASE_COUNT*OUTPUT_COUNT; idx = idx + 1) begin
             if (^expected_mem[idx] === 1'bx) begin
                 $display("ERROR: expected[%0d] has X/Z after load", idx);
                 mismatches = mismatches + 1;
             end
         end
 
-        for (idx = 0; idx < INSTR_COUNT; idx = idx + 1) begin
-            instr_flat[idx*INSTR_W +: INSTR_W] = instr_mem[idx];
+        for (idx = 0; idx < CASE_COUNT*STATUS_COUNT; idx = idx + 1) begin
+            if (^expected_status[idx] === 1'bx) begin
+                $display("ERROR: expected_status[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
         end
 
         for (idx = 0; idx < INPUT_COUNT; idx = idx + 1) begin
@@ -132,58 +141,79 @@ module tb_pipeline_dense;
             weight_flat[idx*WEIGHT_W +: WEIGHT_W] = weight_mem[idx];
         end
 
-        repeat (3) @(negedge clk);
-        rst_n = 1'b1;
-
-        @(negedge clk);
-        start = 1'b1;
-        @(negedge clk);
-        start = 1'b0;
-
-        cycles_waited = 0;
-        while (!done && cycles_waited < 2000) begin
-            @(posedge clk);
-            #1;
-            cycles_waited = cycles_waited + 1;
-        end
-
-        if (!done) begin
-            $display("ERROR: pipeline_dense did not assert done within timeout");
-            mismatches = mismatches + 1;
-        end
-
-        if (error) begin
-            $display("ERROR: pipeline_dense asserted error");
-            mismatches = mismatches + 1;
-        end
-
-        if (op_count !== 8'd2) begin
-            $display("ERROR: op_count got=%0d expected=2", op_count);
-            mismatches = mismatches + 1;
-        end
-
-        if (cycle_count !== 32'd912) begin
-            $display("ERROR: cycle_count got=%0d expected=912", cycle_count);
-            mismatches = mismatches + 1;
-        end
-
-        for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
-            got = output_flat[idx*DATA_W +: DATA_W];
-            expected = expected_mem[idx];
-            if (got !== expected) begin
-                $display("ERROR: output[%0d] got=%02x expected=%02x", idx, got, expected);
-                mismatches = mismatches + 1;
-            end
+        for (case_idx = 0; case_idx < CASE_COUNT; case_idx = case_idx + 1) begin
+            run_case(case_idx);
         end
 
         if (mismatches == 0) begin
-            $display("target=pipeline_dense mismatches=0 PASS cycles=%0d ops=%0d", cycle_count, op_count);
+            $display("target=pipeline_dense mismatches=0 PASS cases=%0d", CASE_COUNT);
             $finish;
         end else begin
             $display("target=pipeline_dense mismatches=%0d FAIL", mismatches);
             $fatal(1);
         end
     end
+
+    task run_case;
+        input integer case_id;
+        begin
+            instr_flat = '0;
+            for (idx = 0; idx < INSTR_COUNT; idx = idx + 1) begin
+                instr_flat[idx*INSTR_W +: INSTR_W] = instr_mem[case_id*INSTR_COUNT + idx];
+            end
+
+            rst_n = 1'b0;
+            start = 1'b0;
+            repeat (3) @(negedge clk);
+            rst_n = 1'b1;
+
+            @(negedge clk);
+            start = 1'b1;
+            @(negedge clk);
+            start = 1'b0;
+
+            cycles_waited = 0;
+            while (!done && cycles_waited < 2000) begin
+                @(posedge clk);
+                #1;
+                cycles_waited = cycles_waited + 1;
+            end
+
+            if (!done) begin
+                $display("ERROR: case %0d pipeline_dense did not assert done within timeout", case_id);
+                mismatches = mismatches + 1;
+            end
+
+            status_idx = case_id * STATUS_COUNT;
+            if (error !== expected_status[status_idx][0]) begin
+                $display("ERROR: case %0d error got=%0b expected=%0b",
+                         case_id, error, expected_status[status_idx][0]);
+                mismatches = mismatches + 1;
+            end
+
+            if (op_count !== expected_status[status_idx + 1][7:0]) begin
+                $display("ERROR: case %0d op_count got=%0d expected=%0d",
+                         case_id, op_count, expected_status[status_idx + 1][7:0]);
+                mismatches = mismatches + 1;
+            end
+
+            if (cycle_count !== expected_status[status_idx + 2]) begin
+                $display("ERROR: case %0d cycle_count got=%0d expected=%0d",
+                         case_id, cycle_count, expected_status[status_idx + 2]);
+                mismatches = mismatches + 1;
+            end
+
+            for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
+                got = output_flat[idx*DATA_W +: DATA_W];
+                expected = expected_mem[case_id*OUTPUT_COUNT + idx];
+                if (got !== expected) begin
+                    $display("ERROR: case %0d output[%0d] got=%02x expected=%02x",
+                             case_id, idx, got, expected);
+                    mismatches = mismatches + 1;
+                end
+            end
+        end
+    endtask
 
 endmodule
 

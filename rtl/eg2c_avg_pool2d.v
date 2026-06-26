@@ -30,6 +30,7 @@ module eg2c_avg_pool2d #(
     localparam integer STATE_CALC = 2'd1;
     localparam integer STATE_DONE = 2'd2;
     localparam integer POOL_ELEMS = POOL_H * POOL_W;
+    localparam integer ACC_REQ_W = DATA_W + ((POOL_ELEMS > 1) ? $clog2(POOL_ELEMS) : 0);
 
     reg [1:0] state_q;
     integer out_y_q;
@@ -61,8 +62,8 @@ module eg2c_avg_pool2d #(
         if (DATA_W != 8) begin
             $fatal(1, "eg2c_avg_pool2d currently requires 8-bit activations");
         end
-        if (ACC_W < DATA_W) begin
-            $fatal(1, "eg2c_avg_pool2d requires ACC_W >= DATA_W");
+        if (ACC_W < ACC_REQ_W) begin
+            $fatal(1, "eg2c_avg_pool2d ACC_W is too small for the full pool accumulation");
         end
     end
 

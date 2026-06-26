@@ -15,6 +15,12 @@ module eg2c_sparse_selector #(
 
     integer idx;
 
+    initial begin
+        if ((2 ** INDEX_W) < ACT_COUNT) begin
+            $fatal(1, "eg2c_sparse_selector INDEX_W cannot address every activation");
+        end
+    end
+
     always @(act_vec_i or index_i) begin
         act_o = {DATA_W{1'b0}};
         for (idx = 0; idx < ACT_COUNT; idx = idx + 1) begin

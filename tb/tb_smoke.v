@@ -11,6 +11,7 @@ module tb_smoke;
 
     wire busy;
     wire done;
+    wire error;
     wire [2:0] ctrl_state;
     wire [7:0] ctrl_opcode;
 
@@ -41,6 +42,15 @@ module tb_smoke;
 
     integer mismatches;
     integer cycles;
+    reg ctrl_check_start;
+    reg ctrl_check_mode;
+    reg [`EG2C_INSTR_W-1:0] ctrl_check_instr;
+    wire [1:0] ctrl_check_addr;
+    wire ctrl_check_busy;
+    wire ctrl_check_done;
+    wire ctrl_check_error;
+    wire [2:0] ctrl_check_state;
+    wire [7:0] ctrl_check_opcode;
 
     eg2c_top dut (
         .clk_i(clk),
@@ -48,6 +58,7 @@ module tb_smoke;
         .start_i(start),
         .busy_o(busy),
         .done_o(done),
+        .error_o(error),
         .ctrl_state_o(ctrl_state),
         .ctrl_opcode_o(ctrl_opcode),
         .dbg_instr_we_i(dbg_instr_we),
@@ -72,6 +83,30 @@ module tb_smoke;
         .dbg_index_rdata_o(dbg_index_rdata)
     );
 
+    eg2c_controller #(
+        .INSTR_ADDR_W(2),
+        .INSTR_COUNT(2)
+    ) u_ctrl_check (
+        .clk_i(clk),
+        .rst_ni(rst_n),
+        .start_i(ctrl_check_start),
+        .instr_data_i(ctrl_check_instr),
+        .instr_addr_o(ctrl_check_addr),
+        .busy_o(ctrl_check_busy),
+        .done_o(ctrl_check_done),
+        .error_o(ctrl_check_error),
+        .state_o(ctrl_check_state),
+        .opcode_o(ctrl_check_opcode)
+    );
+
+    always @* begin
+        if (ctrl_check_mode) begin
+            ctrl_check_instr = {`EG2C_OP_NOP, 24'h000000};
+        end else begin
+            ctrl_check_instr = {8'h7e, 24'h000000};
+        end
+    end
+
     initial begin
         clk = 1'b0;
         forever #5 clk = ~clk;
@@ -88,6 +123,8 @@ module tb_smoke;
         mismatches = 0;
         rst_n = 1'b0;
         start = 1'b0;
+        ctrl_check_start = 1'b0;
+        ctrl_check_mode = 1'b0;
         dbg_instr_we = 1'b0;
         dbg_instr_addr = {`EG2C_INSTR_ADDR_W{1'b0}};
         dbg_instr_wdata = {`EG2C_INSTR_W{1'b0}};
@@ -140,6 +177,14 @@ module tb_smoke;
             $display("ERROR: ctrl_opcode got=%02x expected=%02x", ctrl_opcode, `EG2C_OP_DONE);
             mismatches = mismatches + 1;
         end
+
+        if (error) begin
+            $display("ERROR: top controller asserted error for DONE-only smoke program");
+            mismatches = mismatches + 1;
+        end
+
+        check_controller_error("invalid opcode", 1'b0);
+        check_controller_error("missing DONE timeout", 1'b1);
 
         if (mismatches == 0) begin
             $display("target=smoke mismatches=0 PASS");
@@ -249,6 +294,41 @@ module tb_smoke;
             #1;
             if (got !== expected) begin
                 $display("ERROR: %0s got=%08x expected=%08x", name, got, expected);
+                mismatches = mismatches + 1;
+            end
+        end
+    endtask
+
+    task check_controller_error;
+        input [127:0] name;
+        input mode;
+        begin
+            @(negedge clk);
+            rst_n = 1'b0;
+            ctrl_check_start = 1'b0;
+            ctrl_check_mode = mode;
+            @(negedge clk);
+            rst_n = 1'b1;
+
+            @(negedge clk);
+            ctrl_check_start = 1'b1;
+            @(negedge clk);
+            ctrl_check_start = 1'b0;
+
+            cycles = 0;
+            while (!ctrl_check_done && cycles < 12) begin
+                @(posedge clk);
+                #1;
+                cycles = cycles + 1;
+            end
+
+            if (!ctrl_check_done) begin
+                $display("ERROR: controller %0s did not assert done within timeout", name);
+                mismatches = mismatches + 1;
+            end
+
+            if (!ctrl_check_error) begin
+                $display("ERROR: controller %0s did not assert error", name);
                 mismatches = mismatches + 1;
             end
         end

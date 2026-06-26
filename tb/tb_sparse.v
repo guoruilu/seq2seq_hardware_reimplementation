@@ -104,7 +104,7 @@ module tb_sparse;
         end
 
         for (idx = 0; idx < VEC_COUNT; idx = idx + 1) begin
-            if (valid_mem[idx] === 1'bx) begin
+            if (valid_mem[idx] !== 1'b0 && valid_mem[idx] !== 1'b1) begin
                 $display("ERROR: sparse vector_valid[%0d] has X/Z after load", idx);
                 mismatches = mismatches + 1;
             end
@@ -180,8 +180,19 @@ module tb_sparse;
             mismatches = mismatches + 1;
         end
 
+        if (expected_stats[4] !== expected_stats[1] + expected_stats[2]) begin
+            $display("ERROR: sparse stats inconsistent total=%0d active+skipped=%0d",
+                     expected_stats[4], expected_stats[1] + expected_stats[2]);
+            mismatches = mismatches + 1;
+        end
+
         if (active_cycle_count >= expected_stats[3]) begin
             $display("ERROR: active sparse cycles did not decrease: active=%0d dense=%0d", active_cycle_count, expected_stats[3]);
+            mismatches = mismatches + 1;
+        end
+
+        if (cycle_count >= expected_stats[3]) begin
+            $display("ERROR: total sparse cycles did not decrease: total=%0d dense=%0d", cycle_count, expected_stats[3]);
             mismatches = mismatches + 1;
         end
 

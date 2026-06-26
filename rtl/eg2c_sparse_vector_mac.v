@@ -31,6 +31,8 @@ module eg2c_sparse_vector_mac #(
     localparam integer STATE_IDLE = 2'd0;
     localparam integer STATE_RUN  = 2'd1;
     localparam integer STATE_DONE = 2'd2;
+    localparam integer ACC_TERMS = VEC_COUNT * VEC_LEN;
+    localparam integer ACC_REQ_W = DATA_W + WEIGHT_W + ((ACC_TERMS > 1) ? $clog2(ACC_TERMS) : 0);
 
     reg [1:0] state_q;
     integer vec_q;
@@ -59,8 +61,8 @@ module eg2c_sparse_vector_mac #(
         if (DATA_W != 8 || WEIGHT_W != 8) begin
             $fatal(1, "eg2c_sparse_vector_mac currently requires 8-bit activations and weights");
         end
-        if (ACC_W < DATA_W + WEIGHT_W) begin
-            $fatal(1, "eg2c_sparse_vector_mac requires ACC_W >= DATA_W + WEIGHT_W");
+        if (ACC_W < ACC_REQ_W) begin
+            $fatal(1, "eg2c_sparse_vector_mac ACC_W is too small for the full sparse-vector accumulation");
         end
     end
 

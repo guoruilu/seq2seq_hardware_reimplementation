@@ -151,8 +151,9 @@ Paper terms:
 
 Architecture-level plan:
 - First implement a simple depth-wise convolution loop.
-- Then add a reuse-mode scheduler that issues multiple related output positions to lanes in parallel.
-- Verify with small tensors that the optimized schedule matches the simple golden output.
+- Current RTL adds an output-equivalent analytical counter model for simple/CIR/D-RIR trends.
+- A true reuse-mode scheduler that assigns related output positions to lanes in parallel remains TODO.
+- Verify with small tensors that any future optimized schedule matches the simple golden output.
 
 ## 7. Threshold Adaptation From Fig. 6
 

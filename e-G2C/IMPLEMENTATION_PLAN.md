@@ -37,12 +37,15 @@ Standard files:
 | `instr.hex` | Python generator | instruction SRAM loader | one 32-bit instruction per line, big-endian human-readable hex |
 | `ctx.hex` | Python generator | optional context memory loader | one context word per line; width documented in the target README/header |
 | `scores.hex` / `thresholds.hex` | Python generator | branch testbench | signed 8-bit detector score and threshold values |
+| `coarse.hex` / `precise.hex` | Python generator | branch testbench | one signed 8-bit output vector entry per line for coarse and precise candidate paths |
 | `expected_path.bin` | Python generator | branch testbench | one binary path bit per branch case; `1` means precise/abnormal |
 | `vector_valid.bin` | Python generator | sparse testbench | one binary validity bit per sparse vector |
-| `expected_stats.hex` | Python generator | sparse and schedule-counter testbenches | 32-bit hex counters; fields are target-specific and documented in `target.json` |
+| `expected_status.hex` | Python generator | `pipeline_dense` testbench | repeated per case: `expected_error`, `expected_ops`, `expected_cycles` |
+| `expected_stats.hex` | Python generator | sparse and schedule-counter testbenches | sparse order: `dense_accumulator`, `active_sparse_cycles`, `skipped_vectors`, `dense_equivalent_cycles`, `total_sparse_cycles`; DW reuse order: `simple_cycles`, `cir_cycles`, `drir_cycles` |
 | `target.json` | Python generator | Python golden, RTL testbench documentation | target shape/layout/padding/stride/arithmetic assumptions |
 | `adapt_target.json` | Python generator | adaptation golden and testbench documentation | threshold interval boundaries, score format, counter width, update window |
-| `expected.hex` | Python golden | testbench checker | one signed output activation per line; first baseline uses 8-bit two's-complement hex |
+| `expected.hex` | Python golden | testbench checker | one signed output activation per line; first baseline uses 8-bit two's-complement hex; branch target stores the vector selected by `expected_path.bin` |
+| `manifest.json` | Python generator | simulation runner | generated artifact line counts, byte counts, and sha256 hashes checked before `iverilog` |
 | `sim.vvp` | `iverilog` | `vvp` | compiled simulation |
 | `wave.vcd` | testbench when `wave` is passed | GTKWave | optional waveform |
 
@@ -152,8 +155,7 @@ Tasks:
 - Add cycle counters for later speedup comparison.
 
 Verification:
-- `tb_eg2c_mac_lane.v`: hand-computed vectors.
-- `tb_eg2c_mac_array.v`: multiple lanes produce ordered outputs.
+- `tb/tb_mac.v`: hand-computed MAC lane vectors plus multiple-lane MAC array ordering.
 
 Acceptance:
 - MAC tests report `0` mismatches.
@@ -238,33 +240,36 @@ Acceptance:
 ## Phase 4 -- Instruction-Driven Layer Scheduling
 
 Goal:
-- Let a controller execute a list of layer instructions instead of hard-coded testbench steps.
+- Let a compact dense-pipeline model execute a list of layer instructions instead of hard-coded testbench steps.
 
 Tasks:
-- Define instruction fields and document them.
-- Add a small context table if needed for tensor shape/base addresses.
-- Implement controller states:
+- Define the minimal simulation opcodes and document them.
+- Implement `eg2c_dense_pipeline` states:
   - idle;
   - fetch instruction;
   - decode;
-  - run layer;
-  - swap activation buffers;
+  - wait for CONV;
+  - wait for POOL;
   - done.
-- Add model descriptors for:
-  - detector toy model;
-  - coarse converter toy model;
-  - precise converter toy model.
+- Reject unsupported opcodes with `error_o`.
+- Add generated programs that cover:
+  - `CONV -> POOL -> DONE`;
+  - `DONE` only;
+  - `NOP -> CONV -> POOL -> DONE`;
+  - illegal opcode/error.
+- Keep detector/coarse/precise top-level sequencing for later `top` integration work.
 
 Verification:
 - Python script generates:
   - instruction memory hex;
   - weight memory hex;
   - activation input hex;
-  - expected output hex.
-- Testbench loads all memories and starts the top.
+  - expected output hex;
+  - per-case expected `error_o`, `op_count_o`, and `cycle_count_o`.
+- Testbench loads all artifacts and starts `eg2c_dense_pipeline` once per generated program.
 
 Acceptance:
-- `./sim/run_sim.sh pipeline_dense` runs a multi-layer toy pipeline and reports PASS.
+- `./sim/run_sim.sh pipeline_dense` runs all generated dense toy programs and reports PASS.
 - This is the first integration milestone, not the first executable milestone.
 
 ## Phase 5 -- Detector Branching
@@ -445,6 +450,6 @@ The first integration milestone is:
 ./sim/run_sim.sh pipeline_dense
 ```
 
-It currently runs a compact CONV -> POOL -> DONE dense toy program without sparse optimization and matches Python golden. Detector/coarse/precise top-level sequencing is reserved for the later `top` target.
+It currently runs compact dense toy programs, including CONV -> POOL -> DONE, DONE-only, NOP-prefixed, and illegal-opcode cases, without sparse optimization. Detector/coarse/precise top-level sequencing is reserved for the later `top` target.
 
-Only after the dense pipeline milestone should sparse mode and DW reuse be added.
+Sparse mode and the DW reuse counter model were added after the dense pipeline milestone; integrating sparse mode and true DW lane scheduling into the normal top-level pipeline remains future work.

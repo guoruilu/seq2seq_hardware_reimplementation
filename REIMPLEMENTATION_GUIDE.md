@@ -39,6 +39,16 @@ Every meaningful change should update documents in the same turn:
 - Update `e-G2C/BUGFIX.md` when a bug is found and fixed.
 - Update `e-G2C/PROJECT_GUIDE.md` or `e-G2C/IMPLEMENTATION_PLAN.md` when architecture, module boundaries, or verification strategy changes.
 
+Every completed small task should be committed and pushed to the configured GitHub remote before starting the next task.
+
+Every completed large task must go through independent review before the next large task starts:
+- documentation consistency;
+- RTL/architecture code;
+- golden data and testbench checks;
+- simulation flow and generated artifacts.
+
+Fix review findings, rerun regression, update documents, commit, push, and repeat independent review until the loop converges.
+
 Keep logs short. Put detailed reasoning in the guide or plan, not in the log.
 
 ## 4. RTL Rules
@@ -108,4 +118,3 @@ Expected local tools:
 - Python 3 for data generation and golden models.
 
 If a tool is missing, keep working with available alternatives when practical. For PDF extraction, PyMuPDF is also acceptable.
-

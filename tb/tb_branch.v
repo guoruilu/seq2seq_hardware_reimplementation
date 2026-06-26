@@ -63,7 +63,7 @@ module tb_branch;
 
         for (case_idx = 0; case_idx < CASE_COUNT; case_idx = case_idx + 1) begin
             if (^score_mem[case_idx] === 1'bx || ^threshold_mem[case_idx] === 1'bx ||
-                expected_path_mem[case_idx] === 1'bx) begin
+                (expected_path_mem[case_idx] !== 1'b0 && expected_path_mem[case_idx] !== 1'b1)) begin
                 $display("ERROR: branch case %0d has X/Z in loaded score, threshold, or path", case_idx);
                 mismatches = mismatches + 1;
             end

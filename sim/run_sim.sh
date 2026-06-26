@@ -17,7 +17,7 @@ Targets:
   pw       Verify dense 1x1 point-wise convolution against Python golden output
   pool     Verify average pooling against Python golden output
   pipeline_dense
-           Verify instruction-driven CONV -> POOL dense toy pipeline
+           Verify instruction-driven dense toy programs, including error paths
   branch   Verify detector threshold branch between coarse and precise paths
   sparse   Verify vector-wise sparse activation selection and MAC work reduction
   dw_reuse Verify DW output equivalence and CIR/D-RIR schedule counters
@@ -77,12 +77,14 @@ if [[ -n "$wave_arg" && "$wave_arg" != "wave" && "$wave_arg" != "--wave" ]]; the
 fi
 
 build_dir="$root_dir/sim/build/$target"
+rm -rf "$build_dir"
 mkdir -p "$build_dir"
 cd "$root_dir"
 
 case "$target" in
     conv|dw|pw|pool|pipeline_dense|branch|sparse|dw_reuse)
         python3 "$root_dir/scripts/golden_eg2c.py" "$target" --build-dir "$build_dir"
+        python3 "$root_dir/scripts/validate_manifest.py" "$build_dir"
         ;;
 esac
 

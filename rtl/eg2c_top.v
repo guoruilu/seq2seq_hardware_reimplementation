@@ -11,15 +11,20 @@ module eg2c_top #(
     parameter integer INSTR_W       = `EG2C_INSTR_W,
     parameter integer LANES         = `EG2C_LANE_COUNT,
     parameter integer ACT_ADDR_W    = `EG2C_ACT_ADDR_W,
+    parameter integer ACT_DEPTH     = `EG2C_ACT_DEPTH,
     parameter integer WEIGHT_ADDR_W = `EG2C_WEIGHT_ADDR_W,
+    parameter integer WEIGHT_DEPTH  = `EG2C_WEIGHT_DEPTH,
     parameter integer INDEX_ADDR_W  = `EG2C_INDEX_ADDR_W,
-    parameter integer INSTR_ADDR_W  = `EG2C_INSTR_ADDR_W
+    parameter integer INDEX_DEPTH   = `EG2C_INDEX_DEPTH,
+    parameter integer INSTR_ADDR_W  = `EG2C_INSTR_ADDR_W,
+    parameter integer INSTR_DEPTH   = `EG2C_INSTR_DEPTH
 ) (
     input  wire                       clk_i,
     input  wire                       rst_ni,
     input  wire                       start_i,
     output wire                       busy_o,
     output wire                       done_o,
+    output wire                       error_o,
     output wire [2:0]                 ctrl_state_o,
     output wire [7:0]                 ctrl_opcode_o,
 
@@ -76,7 +81,11 @@ module eg2c_top #(
     assign mac_act_vec        = {MAC_ACT_VEC_W{1'b0}};
     assign mac_weight_vec     = {MAC_WEIGHT_VEC_W{1'b0}};
 
-    eg2c_instr_mem u_instr_mem (
+    eg2c_instr_mem #(
+        .DATA_W(INSTR_W),
+        .ADDR_W(INSTR_ADDR_W),
+        .DEPTH(INSTR_DEPTH)
+    ) u_instr_mem (
         .clk_i(clk_i),
         .we_i(dbg_instr_we_i),
         .wr_addr_i(dbg_instr_addr_i),
@@ -85,7 +94,11 @@ module eg2c_top #(
         .rd_data_o(instr_data)
     );
 
-    eg2c_act_mem u_act_gb0 (
+    eg2c_act_mem #(
+        .DATA_W(DATA_W),
+        .ADDR_W(ACT_ADDR_W),
+        .DEPTH(ACT_DEPTH)
+    ) u_act_gb0 (
         .clk_i(clk_i),
         .we_i(dbg_act0_we_i),
         .wr_addr_i(dbg_act0_addr_i),
@@ -94,7 +107,11 @@ module eg2c_top #(
         .rd_data_o(dbg_act0_rdata_o)
     );
 
-    eg2c_act_mem u_act_gb1 (
+    eg2c_act_mem #(
+        .DATA_W(DATA_W),
+        .ADDR_W(ACT_ADDR_W),
+        .DEPTH(ACT_DEPTH)
+    ) u_act_gb1 (
         .clk_i(clk_i),
         .we_i(dbg_act1_we_i),
         .wr_addr_i(dbg_act1_addr_i),
@@ -103,7 +120,11 @@ module eg2c_top #(
         .rd_data_o(dbg_act1_rdata_o)
     );
 
-    eg2c_weight_mem u_weight_mem (
+    eg2c_weight_mem #(
+        .DATA_W(WEIGHT_W),
+        .ADDR_W(WEIGHT_ADDR_W),
+        .DEPTH(WEIGHT_DEPTH)
+    ) u_weight_mem (
         .clk_i(clk_i),
         .we_i(dbg_weight_we_i),
         .wr_addr_i(dbg_weight_addr_i),
@@ -112,7 +133,11 @@ module eg2c_top #(
         .rd_data_o(dbg_weight_rdata_o)
     );
 
-    eg2c_index_mem u_index_mem (
+    eg2c_index_mem #(
+        .DATA_W(INDEX_W),
+        .ADDR_W(INDEX_ADDR_W),
+        .DEPTH(INDEX_DEPTH)
+    ) u_index_mem (
         .clk_i(clk_i),
         .we_i(dbg_index_we_i),
         .wr_addr_i(dbg_index_addr_i),
@@ -121,14 +146,18 @@ module eg2c_top #(
         .rd_data_o(dbg_index_rdata_o)
     );
 
-    eg2c_input_act_buffer u_input_act_buffer (
+    eg2c_input_act_buffer #(
+        .DATA_W(DATA_W)
+    ) u_input_act_buffer (
         .valid_i(1'b0),
         .data_i(dbg_act0_rdata_o),
         .valid_o(input_buf_valid),
         .data_o(input_buf_data)
     );
 
-    eg2c_output_act_buffer u_output_act_buffer (
+    eg2c_output_act_buffer #(
+        .DATA_W(DATA_W)
+    ) u_output_act_buffer (
         .clk_i(clk_i),
         .rst_ni(rst_ni),
         .valid_i(input_buf_valid),
@@ -137,7 +166,12 @@ module eg2c_top #(
         .data_o(output_buf_data)
     );
 
-    eg2c_mac_array u_mac_array (
+    eg2c_mac_array #(
+        .LANES(LANES),
+        .DATA_W(DATA_W),
+        .WEIGHT_W(WEIGHT_W),
+        .ACC_W(ACC_W)
+    ) u_mac_array (
         .clk_i(clk_i),
         .rst_ni(rst_ni),
         .clear_i(1'b0),
@@ -148,7 +182,11 @@ module eg2c_top #(
         .valid_vec_o(mac_valid_vec)
     );
 
-    eg2c_controller u_controller (
+    eg2c_controller #(
+        .INSTR_W(INSTR_W),
+        .INSTR_ADDR_W(INSTR_ADDR_W),
+        .INSTR_COUNT(INSTR_DEPTH)
+    ) u_controller (
         .clk_i(clk_i),
         .rst_ni(rst_ni),
         .start_i(start_i),
@@ -156,6 +194,7 @@ module eg2c_top #(
         .instr_addr_o(ctrl_instr_addr),
         .busy_o(ctrl_busy),
         .done_o(ctrl_done),
+        .error_o(error_o),
         .state_o(ctrl_state_o),
         .opcode_o(ctrl_opcode_o)
     );

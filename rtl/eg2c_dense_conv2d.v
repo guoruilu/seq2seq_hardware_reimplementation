@@ -30,6 +30,8 @@ module eg2c_dense_conv2d #(
     localparam integer STATE_IDLE = 2'd0;
     localparam integer STATE_CALC = 2'd1;
     localparam integer STATE_DONE = 2'd2;
+    localparam integer ACC_TERMS = K_H * K_W * IN_C;
+    localparam integer ACC_REQ_W = DATA_W + WEIGHT_W + ((ACC_TERMS > 1) ? $clog2(ACC_TERMS) : 0);
 
     reg [1:0] state_q;
     integer out_y_q;
@@ -89,8 +91,8 @@ module eg2c_dense_conv2d #(
         if (DATA_W != 8 || WEIGHT_W != 8) begin
             $fatal(1, "eg2c_dense_conv2d currently requires 8-bit activations and weights");
         end
-        if (ACC_W < DATA_W + WEIGHT_W) begin
-            $fatal(1, "eg2c_dense_conv2d requires ACC_W >= DATA_W + WEIGHT_W");
+        if (ACC_W < ACC_REQ_W) begin
+            $fatal(1, "eg2c_dense_conv2d ACC_W is too small for the full kernel accumulation");
         end
     end
 

@@ -61,3 +61,36 @@ Fix:
 
 Prevention:
 - Every signed comparison test should include at least one mixed-sign case where signed and unsigned results differ.
+
+## #004 -- Top controller skipped invalid or unterminated programs
+
+Symptoms:
+- RTL review found that the smoke/top-shell controller treated any opcode except `NOP` and `DONE` as a one-cycle runnable operation.
+- Programs without a reachable `DONE` could advance until the instruction address wrapped.
+
+Root cause:
+- `eg2c_controller` did not have an opcode whitelist, `error_o`, or an instruction-count guard.
+
+Fix:
+- Added opcode validation, `error_o`, and `INSTR_COUNT` bounds checking to `eg2c_controller`.
+- Exposed the error signal through `eg2c_top`.
+- Extended `tb_smoke` with direct controller checks for invalid opcode and missing-DONE timeout cases.
+
+Prevention:
+- Every instruction walker should have explicit illegal-instruction and program-bound tests, even while it is still a smoke-shell model.
+
+## #005 -- Single pipeline program allowed instruction-driven false positives
+
+Symptoms:
+- Test/golden review found that `pipeline_dense` could pass even if the DUT ignored `instr_mem` and hard-coded CONV then POOL.
+
+Root cause:
+- The generated target contained only one program: `CONV -> POOL -> DONE`.
+
+Fix:
+- Expanded `pipeline_dense` golden data to four programs: normal CONV/POOL, DONE-only, NOP-prefixed CONV/POOL, and illegal opcode.
+- Added per-case `expected_status.hex` checks for `error_o`, `op_count_o`, and `cycle_count_o`.
+- Added `manifest.json` plus manifest validation for generated artifact line counts and hashes.
+
+Prevention:
+- Instruction-driven tests must include at least one no-op path, one shifted legal path, and one illegal path.

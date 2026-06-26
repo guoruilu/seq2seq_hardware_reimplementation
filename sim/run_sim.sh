@@ -20,6 +20,10 @@ Targets:
            Verify instruction-driven dense toy programs, including error paths
   branch   Verify detector threshold branch between coarse and precise paths
   sparse   Verify vector-wise sparse activation selection and MAC work reduction
+  conv_sparse
+           Verify sparse-weight vector skipping inside normal-conv scheduling
+  pw_sparse
+           Verify sparse-weight vector skipping inside point-wise-conv scheduling
   dw_reuse Verify DW output equivalence and CIR/D-RIR schedule counters
 
 Options:
@@ -60,6 +64,12 @@ case "$target" in
     sparse)
         tb_file="$root_dir/tb/tb_sparse.v"
         ;;
+    conv_sparse)
+        tb_file="$root_dir/tb/tb_conv_sparse.v"
+        ;;
+    pw_sparse)
+        tb_file="$root_dir/tb/tb_pw_sparse.v"
+        ;;
     dw_reuse)
         tb_file="$root_dir/tb/tb_dw_reuse.v"
         ;;
@@ -82,7 +92,7 @@ mkdir -p "$build_dir"
 cd "$root_dir"
 
 case "$target" in
-    conv|dw|pw|pool|pipeline_dense|branch|sparse|dw_reuse)
+    conv|dw|pw|pool|pipeline_dense|branch|sparse|conv_sparse|pw_sparse|dw_reuse)
         python3 "$root_dir/scripts/golden_eg2c.py" "$target" --build-dir "$build_dir"
         python3 "$root_dir/scripts/validate_manifest.py" "$build_dir"
         ;;

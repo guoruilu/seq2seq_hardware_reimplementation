@@ -46,10 +46,15 @@ module eg2c_dense_pipeline #(
     wire conv_busy;
     wire conv_done;
     wire [31:0] conv_cycle_count;
+    wire [31:0] conv_active_cycle_count;
+    wire [31:0] conv_skipped_vector_count;
     wire pool_busy;
     wire pool_done;
     wire [31:0] pool_cycle_count;
     wire [IN_H*IN_W*CONV_OUT_C*DATA_W-1:0] conv_output;
+    localparam integer CONV_SPARSE_VEC_LEN = 3 * IN_C;
+    localparam integer CONV_SPARSE_VEC_COUNT = (3 * 3 * IN_C + CONV_SPARSE_VEC_LEN - 1) / CONV_SPARSE_VEC_LEN;
+    localparam integer CONV_SPARSE_VALID_COUNT = CONV_OUT_C * CONV_SPARSE_VEC_COUNT;
 
     assign opcode = instr_q[31:24];
 
@@ -75,12 +80,16 @@ module eg2c_dense_pipeline #(
         .clk_i(clk_i),
         .rst_ni(rst_ni),
         .start_i(conv_start_q),
+        .sparse_enable_i(1'b0),
         .input_act_i(input_act_i),
         .weight_i(conv_weight_i),
+        .sparse_vector_valid_i({CONV_SPARSE_VALID_COUNT{1'b0}}),
         .output_act_o(conv_output),
         .busy_o(conv_busy),
         .done_o(conv_done),
-        .cycle_count_o(conv_cycle_count)
+        .cycle_count_o(conv_cycle_count),
+        .active_cycle_count_o(conv_active_cycle_count),
+        .skipped_vector_count_o(conv_skipped_vector_count)
     );
 
     eg2c_avg_pool2d #(

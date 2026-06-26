@@ -10,17 +10,22 @@ module eg2c_pw_conv2d #(
     parameter integer IN_H     = 4,
     parameter integer IN_W     = 4,
     parameter integer IN_C     = 4,
-    parameter integer OUT_C    = 5
+    parameter integer OUT_C    = 5,
+    parameter integer SPARSE_VEC_LEN = 3
 ) (
     input  wire                                    clk_i,
     input  wire                                    rst_ni,
     input  wire                                    start_i,
+    input  wire                                    sparse_enable_i,
     input  wire [IN_H*IN_W*IN_C*DATA_W-1:0]       input_act_i,
     input  wire [IN_C*OUT_C*WEIGHT_W-1:0]         weight_i,
+    input  wire [OUT_C*((IN_C + SPARSE_VEC_LEN - 1)/SPARSE_VEC_LEN)-1:0] sparse_vector_valid_i,
     output reg  [IN_H*IN_W*OUT_C*DATA_W-1:0]      output_act_o,
     output reg                                     busy_o,
     output reg                                     done_o,
-    output reg  [31:0]                             cycle_count_o
+    output reg  [31:0]                             cycle_count_o,
+    output reg  [31:0]                             active_cycle_count_o,
+    output reg  [31:0]                             skipped_vector_count_o
 );
 
     localparam integer STATE_IDLE = 2'd0;
@@ -28,6 +33,7 @@ module eg2c_pw_conv2d #(
     localparam integer STATE_DONE = 2'd2;
     localparam integer ACC_TERMS = IN_C;
     localparam integer ACC_REQ_W = DATA_W + WEIGHT_W + ((ACC_TERMS > 1) ? $clog2(ACC_TERMS) : 0);
+    localparam integer SPARSE_VEC_COUNT = (IN_C + SPARSE_VEC_LEN - 1) / SPARSE_VEC_LEN;
 
     reg [1:0] state_q;
     integer out_y_q;
@@ -37,11 +43,17 @@ module eg2c_pw_conv2d #(
     reg signed [ACC_W-1:0] acc_q;
 
     integer out_index;
+    integer sparse_vec_index;
+    integer sparse_valid_index;
+    integer next_skip_in_c;
     reg signed [DATA_W-1:0] act_value;
     reg signed [WEIGHT_W-1:0] weight_value;
     reg signed [DATA_W+WEIGHT_W-1:0] product_value;
     reg signed [ACC_W-1:0] acc_next;
     reg channel_last;
+    reg vector_start;
+    reg vector_skip;
+    reg vector_last;
 
     function signed [DATA_W-1:0] get_act;
         input integer y;
@@ -84,11 +96,21 @@ module eg2c_pw_conv2d #(
         if (ACC_W < ACC_REQ_W) begin
             $fatal(1, "eg2c_pw_conv2d ACC_W is too small for the full channel accumulation");
         end
+        if (SPARSE_VEC_LEN <= 0) begin
+            $fatal(1, "eg2c_pw_conv2d SPARSE_VEC_LEN must be positive");
+        end
     end
 
-    always @(out_y_q or out_x_q or out_c_q or in_c_q or acc_q or input_act_i or weight_i) begin
+    always @(out_y_q or out_x_q or out_c_q or in_c_q or acc_q or input_act_i or weight_i or sparse_enable_i or sparse_vector_valid_i) begin
         act_value = get_act(out_y_q, out_x_q, in_c_q);
         weight_value = get_weight(in_c_q, out_c_q);
+        sparse_vec_index = in_c_q / SPARSE_VEC_LEN;
+        sparse_valid_index = out_c_q * SPARSE_VEC_COUNT + sparse_vec_index;
+        next_skip_in_c = in_c_q + SPARSE_VEC_LEN;
+        // vector_valid marks sparse weight vectors with at least one nonzero term.
+        vector_start = ((in_c_q - (sparse_vec_index * SPARSE_VEC_LEN)) == 0);
+        vector_skip = sparse_enable_i && vector_start && !sparse_vector_valid_i[sparse_valid_index];
+        vector_last = (sparse_vec_index == SPARSE_VEC_COUNT - 1);
         product_value = act_value * weight_value;
         acc_next = acc_q + {{(ACC_W-(DATA_W+WEIGHT_W)){product_value[DATA_W+WEIGHT_W-1]}}, product_value};
         channel_last = (in_c_q == IN_C - 1);
@@ -107,6 +129,8 @@ module eg2c_pw_conv2d #(
             busy_o        <= 1'b0;
             done_o        <= 1'b0;
             cycle_count_o <= 32'd0;
+            active_cycle_count_o <= 32'd0;
+            skipped_vector_count_o <= 32'd0;
         end else begin
             done_o <= 1'b0;
 
@@ -121,6 +145,8 @@ module eg2c_pw_conv2d #(
                         acc_q         <= {ACC_W{1'b0}};
                         output_act_o  <= {(IN_H*IN_W*OUT_C*DATA_W){1'b0}};
                         cycle_count_o <= 32'd0;
+                        active_cycle_count_o <= 32'd0;
+                        skipped_vector_count_o <= 32'd0;
                         busy_o        <= 1'b1;
                         state_q       <= STATE_CALC;
                     end
@@ -129,7 +155,34 @@ module eg2c_pw_conv2d #(
                 STATE_CALC: begin
                     cycle_count_o <= cycle_count_o + 32'd1;
 
-                    if (channel_last) begin
+                    if (vector_skip) begin
+                        skipped_vector_count_o <= skipped_vector_count_o + 32'd1;
+                        if (vector_last) begin
+                            output_act_o[out_index +: DATA_W] <= saturate_int8(acc_q);
+                            acc_q  <= {ACC_W{1'b0}};
+                            in_c_q <= 0;
+
+                            if (out_c_q == OUT_C - 1) begin
+                                out_c_q <= 0;
+                                if (out_x_q == IN_W - 1) begin
+                                    out_x_q <= 0;
+                                    if (out_y_q == IN_H - 1) begin
+                                        out_y_q <= 0;
+                                        state_q <= STATE_DONE;
+                                    end else begin
+                                        out_y_q <= out_y_q + 1;
+                                    end
+                                end else begin
+                                    out_x_q <= out_x_q + 1;
+                                end
+                            end else begin
+                                out_c_q <= out_c_q + 1;
+                            end
+                        end else begin
+                            in_c_q <= next_skip_in_c;
+                        end
+                    end else if (channel_last) begin
+                        active_cycle_count_o <= active_cycle_count_o + 32'd1;
                         output_act_o[out_index +: DATA_W] <= saturate_int8(acc_next);
                         acc_q  <= {ACC_W{1'b0}};
                         in_c_q <= 0;
@@ -151,6 +204,7 @@ module eg2c_pw_conv2d #(
                             out_c_q <= out_c_q + 1;
                         end
                     end else begin
+                        active_cycle_count_o <= active_cycle_count_o + 32'd1;
                         acc_q  <= acc_next;
                         in_c_q <= in_c_q + 1;
                     end

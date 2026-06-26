@@ -133,11 +133,10 @@ Paper idea:
 
 Architecture-level plan:
 - First implement dense convolution so the math and memory layout are correct.
-- Then add sparse vector mode:
-  - compressed weight vectors;
-  - index stream;
-  - activation selector;
-  - cycle counter showing skipped vectors reduce simulated cycles.
+- Add sparse vector mode in two steps:
+  - standalone selector/MAC target using explicit sparse indices and vector-valid bits;
+  - normal-conv and point-wise-conv schedules that skip all-zero sparse weight vectors and report active/skip counters.
+- Future top-level integration should connect compressed weight/index streams through the activation buffer path rather than only using generated vector-valid masks.
 
 ## 6. Depth-Wise Conv Reuse From Fig. 4
 
@@ -201,7 +200,7 @@ Use this table whenever the implementation needs a detail that is not explicit i
 | Activation function | Paper does not list nonlinearities per layer in the VLSI summary | First dense tests are linear plus output saturation; ReLU or other activation is a later parameter | Avoids inventing model behavior too early |
 | Quantization scale / zero point | Not specified | No scale/zero-point in first dense baseline; direct accumulator saturation | Keeps arithmetic verifiable without trained model export |
 | 32-bit instruction encoding | Paper says 32-bit instructions from Instruction SRAM | Define a simulation encoding; use context memory if shapes do not fit cleanly in 32 bits | Must be documented before Phase 4 |
-| Sparse vector packing | Fig. 3 explains vector-wise sparsity behavior, not exact bit packing | Current architecture-level sparse target uses vector-major unsigned 16-bit indices, signed 8-bit sparse weights, and one `vector_valid` bit per sparse vector; integration into normal/PW conv schedules remains future work | Project-local Phase 6 model |
+| Sparse vector packing | Fig. 3 explains vector-wise sparsity behavior, not exact bit packing | Standalone sparse MAC uses vector-major unsigned 16-bit indices, signed 8-bit sparse weights, and one `vector_valid` bit per sparse vector. Normal/PW conv schedules now use generated `vector_valid` masks for all-zero sparse weight vectors: normal conv groups one kernel row per output channel, PW groups three input-channel weights per output channel. Full top-level compressed index/weight streaming remains future work. | Project-local Phase 6 model |
 | DW reuse exact schedule | Fig. 4 illustrates CIR and D-RIR but not a full cycle table | Implement output-equivalent schedules and report simulated utilization trends, not exact ASIC cycle claims | Phase 7 assumption |
 | Adaptation intervals | Fig. 6 shows intervals and T-day histogram, but not numeric boundaries | First test uses generated interval boundaries, signed 8-bit score/threshold, 16-bit counters, and integer midpoint truncation | Phase 8 assumption |
 | External sources | References are listed but not yet fetched | If used, record URL, access date, and whether source is primary or secondary before changing implementation assumptions | Required for future research |

@@ -14,17 +14,22 @@ module eg2c_dense_conv2d #(
     parameter integer K_H      = 3,
     parameter integer K_W      = 3,
     parameter integer PAD_H    = 1,
-    parameter integer PAD_W    = 1
+    parameter integer PAD_W    = 1,
+    parameter integer SPARSE_VEC_LEN = K_W * IN_C
 ) (
     input  wire                                      clk_i,
     input  wire                                      rst_ni,
     input  wire                                      start_i,
+    input  wire                                      sparse_enable_i,
     input  wire [IN_H*IN_W*IN_C*DATA_W-1:0]         input_act_i,
     input  wire [K_H*K_W*IN_C*OUT_C*WEIGHT_W-1:0]   weight_i,
+    input  wire [OUT_C*((K_H*K_W*IN_C + SPARSE_VEC_LEN - 1)/SPARSE_VEC_LEN)-1:0] sparse_vector_valid_i,
     output reg  [IN_H*IN_W*OUT_C*DATA_W-1:0]        output_act_o,
     output reg                                       busy_o,
     output reg                                       done_o,
-    output reg  [31:0]                               cycle_count_o
+    output reg  [31:0]                               cycle_count_o,
+    output reg  [31:0]                               active_cycle_count_o,
+    output reg  [31:0]                               skipped_vector_count_o
 );
 
     localparam integer STATE_IDLE = 2'd0;
@@ -32,6 +37,7 @@ module eg2c_dense_conv2d #(
     localparam integer STATE_DONE = 2'd2;
     localparam integer ACC_TERMS = K_H * K_W * IN_C;
     localparam integer ACC_REQ_W = DATA_W + WEIGHT_W + ((ACC_TERMS > 1) ? $clog2(ACC_TERMS) : 0);
+    localparam integer SPARSE_VEC_COUNT = (ACC_TERMS + SPARSE_VEC_LEN - 1) / SPARSE_VEC_LEN;
 
     reg [1:0] state_q;
     integer out_y_q;
@@ -45,11 +51,22 @@ module eg2c_dense_conv2d #(
     integer in_y;
     integer in_x;
     integer out_index;
+    integer term_index;
+    integer sparse_vec_index;
+    integer sparse_valid_index;
+    integer next_skip_term_index;
+    integer next_skip_ker_y;
+    integer next_skip_rem;
+    integer next_skip_ker_x;
+    integer next_skip_in_c;
     reg signed [DATA_W-1:0] act_value;
     reg signed [WEIGHT_W-1:0] weight_value;
     reg signed [DATA_W+WEIGHT_W-1:0] product_value;
     reg signed [ACC_W-1:0] acc_next;
     reg kernel_last;
+    reg vector_start;
+    reg vector_skip;
+    reg vector_last;
 
     function signed [DATA_W-1:0] get_act;
         input integer y;
@@ -94,13 +111,28 @@ module eg2c_dense_conv2d #(
         if (ACC_W < ACC_REQ_W) begin
             $fatal(1, "eg2c_dense_conv2d ACC_W is too small for the full kernel accumulation");
         end
+        if (SPARSE_VEC_LEN <= 0) begin
+            $fatal(1, "eg2c_dense_conv2d SPARSE_VEC_LEN must be positive");
+        end
     end
 
-    always @(out_y_q or out_x_q or out_c_q or ker_y_q or ker_x_q or in_c_q or acc_q or input_act_i or weight_i) begin
+    always @(out_y_q or out_x_q or out_c_q or ker_y_q or ker_x_q or in_c_q or acc_q or input_act_i or weight_i or sparse_enable_i or sparse_vector_valid_i) begin
         in_y = out_y_q + ker_y_q - PAD_H;
         in_x = out_x_q + ker_x_q - PAD_W;
         act_value = {DATA_W{1'b0}};
         weight_value = get_weight(ker_y_q, ker_x_q, in_c_q, out_c_q);
+        term_index = (ker_y_q * K_W + ker_x_q) * IN_C + in_c_q;
+        sparse_vec_index = term_index / SPARSE_VEC_LEN;
+        sparse_valid_index = out_c_q * SPARSE_VEC_COUNT + sparse_vec_index;
+        next_skip_term_index = term_index + SPARSE_VEC_LEN;
+        next_skip_ker_y = next_skip_term_index / (K_W * IN_C);
+        next_skip_rem = next_skip_term_index - (next_skip_ker_y * K_W * IN_C);
+        next_skip_ker_x = next_skip_rem / IN_C;
+        next_skip_in_c = next_skip_rem - (next_skip_ker_x * IN_C);
+        // vector_valid marks sparse weight vectors with at least one nonzero term.
+        vector_start = ((term_index - (sparse_vec_index * SPARSE_VEC_LEN)) == 0);
+        vector_skip = sparse_enable_i && vector_start && !sparse_vector_valid_i[sparse_valid_index];
+        vector_last = (sparse_vec_index == SPARSE_VEC_COUNT - 1);
 
         if (in_y >= 0 && in_y < IN_H && in_x >= 0 && in_x < IN_W) begin
             act_value = get_act(in_y, in_x, in_c_q);
@@ -126,6 +158,8 @@ module eg2c_dense_conv2d #(
             busy_o        <= 1'b0;
             done_o        <= 1'b0;
             cycle_count_o <= 32'd0;
+            active_cycle_count_o <= 32'd0;
+            skipped_vector_count_o <= 32'd0;
         end else begin
             done_o <= 1'b0;
 
@@ -142,6 +176,8 @@ module eg2c_dense_conv2d #(
                         acc_q         <= {ACC_W{1'b0}};
                         output_act_o  <= {(IN_H*IN_W*OUT_C*DATA_W){1'b0}};
                         cycle_count_o <= 32'd0;
+                        active_cycle_count_o <= 32'd0;
+                        skipped_vector_count_o <= 32'd0;
                         busy_o        <= 1'b1;
                         state_q       <= STATE_CALC;
                     end
@@ -150,7 +186,38 @@ module eg2c_dense_conv2d #(
                 STATE_CALC: begin
                     cycle_count_o <= cycle_count_o + 32'd1;
 
-                    if (kernel_last) begin
+                    if (vector_skip) begin
+                        skipped_vector_count_o <= skipped_vector_count_o + 32'd1;
+                        if (vector_last) begin
+                            output_act_o[out_index +: DATA_W] <= saturate_int8(acc_q);
+                            acc_q <= {ACC_W{1'b0}};
+                            ker_y_q <= 0;
+                            ker_x_q <= 0;
+                            in_c_q  <= 0;
+
+                            if (out_c_q == OUT_C - 1) begin
+                                out_c_q <= 0;
+                                if (out_x_q == IN_W - 1) begin
+                                    out_x_q <= 0;
+                                    if (out_y_q == IN_H - 1) begin
+                                        out_y_q <= 0;
+                                        state_q <= STATE_DONE;
+                                    end else begin
+                                        out_y_q <= out_y_q + 1;
+                                    end
+                                end else begin
+                                    out_x_q <= out_x_q + 1;
+                                end
+                            end else begin
+                                out_c_q <= out_c_q + 1;
+                            end
+                        end else begin
+                            ker_y_q <= next_skip_ker_y;
+                            ker_x_q <= next_skip_ker_x;
+                            in_c_q  <= next_skip_in_c;
+                        end
+                    end else if (kernel_last) begin
+                        active_cycle_count_o <= active_cycle_count_o + 32'd1;
                         output_act_o[out_index +: DATA_W] <= saturate_int8(acc_next);
                         acc_q <= {ACC_W{1'b0}};
                         ker_y_q <= 0;
@@ -174,6 +241,7 @@ module eg2c_dense_conv2d #(
                             out_c_q <= out_c_q + 1;
                         end
                     end else begin
+                        active_cycle_count_o <= active_cycle_count_o + 32'd1;
                         acc_q <= acc_next;
                         if (in_c_q == IN_C - 1) begin
                             in_c_q <= 0;

@@ -26,6 +26,10 @@ def write_hex(path: Path, values: list[int]) -> None:
     path.write_text("".join(f"{hex_int8(value)}\n" for value in values), encoding="ascii")
 
 
+def write_hex32(path: Path, values: list[int]) -> None:
+    path.write_text("".join(f"{value & 0xFFFFFFFF:08x}\n" for value in values), encoding="ascii")
+
+
 def write_manifest(build_dir: Path) -> None:
     files: dict[str, dict[str, int | str]] = {}
     for path in sorted(build_dir.iterdir()):
@@ -327,6 +331,219 @@ def dense_conv_same(
                                 acc += input_act[act_idx] * weights[weight_idx]
                 output.append(sat_int8(acc))
     return output
+
+
+def gen_conv_sparse(build_dir: Path) -> None:
+    in_h = 4
+    in_w = 4
+    in_c = 2
+    out_c = 3
+    k_h = 3
+    k_w = 3
+    pad_h = 1
+    pad_w = 1
+    sparse_vec_len = k_w * in_c
+    sparse_vec_count = k_h
+
+    input_count = in_h * in_w * in_c
+    weight_count = k_h * k_w * in_c * out_c
+
+    input_act = [((idx * 5 + 3) % 17) - 8 for idx in range(input_count)]
+    weights = [((idx * 7 + 1) % 9) - 4 for idx in range(weight_count)]
+
+    def weight_index(ky: int, kx: int, ic: int, oc: int) -> int:
+        return (((ky * k_w + kx) * in_c + ic) * out_c) + oc
+
+    for oc in range(out_c):
+        for ky in range(k_h):
+            if (oc + ky) % 3 == 1:
+                for kx in range(k_w):
+                    for ic in range(in_c):
+                        weights[weight_index(ky, kx, ic, oc)] = 0
+
+    vector_valid: list[int] = []
+    for oc in range(out_c):
+        for ky in range(k_h):
+            any_nonzero = False
+            for kx in range(k_w):
+                for ic in range(in_c):
+                    any_nonzero |= weights[weight_index(ky, kx, ic, oc)] != 0
+            vector_valid.append(int(any_nonzero))
+
+    expected = dense_conv_same(input_act, weights, in_h, in_w, in_c, out_c, k_h, k_w, pad_h, pad_w)
+
+    dense_cycles = in_h * in_w * out_c * k_h * k_w * in_c
+    active_cycles = 0
+    skipped_vectors = 0
+    for _oy in range(in_h):
+        for _ox in range(in_w):
+            for oc in range(out_c):
+                for vec in range(sparse_vec_count):
+                    if vector_valid[oc * sparse_vec_count + vec]:
+                        active_cycles += sparse_vec_len
+                    else:
+                        skipped_vectors += 1
+    total_sparse_cycles = active_cycles + skipped_vectors
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "input_act.hex", input_act)
+    write_hex(build_dir / "weights.hex", weights)
+    write_hex(build_dir / "expected.hex", expected)
+    (build_dir / "vector_valid.bin").write_text("".join(f"{bit:b}\n" for bit in vector_valid), encoding="ascii")
+    write_hex32(build_dir / "expected_stats.hex", [dense_cycles, active_cycles, skipped_vectors, total_sparse_cycles])
+
+    target = {
+        "target": "conv_sparse",
+        "operation": "normal_conv2d_with_vector_wise_sparse_weight_schedule",
+        "shape": {
+            "input": {"h": in_h, "w": in_w, "c": in_c},
+            "kernel": {"h": k_h, "w": k_w},
+            "output": {"h": in_h, "w": in_w, "c": out_c},
+        },
+        "layout": {
+            "activation": "NHWC",
+            "weight": "kh,kw,cin,cout",
+            "vector_valid": "oc-major kernel rows; each vector covers one ky row across kx and cin",
+        },
+        "sparse_schedule": {
+            "sparse_vector_length": sparse_vec_len,
+            "sparse_vectors_per_output_channel": sparse_vec_count,
+            "valid_rule": "valid iff at least one weight in the vector is nonzero",
+            "skip_rule": "invalid all-zero weight vector consumes one skip cycle per output pixel and output channel",
+            "dense_equivalent_cycles": dense_cycles,
+            "active_sparse_cycles": active_cycles,
+            "skipped_vectors": skipped_vectors,
+            "total_sparse_cycles": total_sparse_cycles,
+        },
+        "arithmetic": {
+            "activation": "signed int8 two's-complement",
+            "weight": "signed int8 two's-complement",
+            "accumulator": "signed int32",
+            "output": "signed int8 saturated from accumulator",
+            "scale_zero_point": None,
+        },
+        "convolution": {
+            "stride": {"h": 1, "w": 1},
+            "padding": {"mode": "explicit_zero", "top": pad_h, "bottom": pad_h, "left": pad_w, "right": pad_w},
+            "activation_function": "linear",
+        },
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
+
+
+def pointwise_conv2d(input_act: list[int], weights: list[int], in_h: int, in_w: int, in_c: int, out_c: int) -> list[int]:
+    output: list[int] = []
+    for oy in range(in_h):
+        for ox in range(in_w):
+            for oc in range(out_c):
+                acc = 0
+                for ic in range(in_c):
+                    act_idx = (oy * in_w + ox) * in_c + ic
+                    weight_idx = ic * out_c + oc
+                    acc += input_act[act_idx] * weights[weight_idx]
+                output.append(sat_int8(acc))
+    return output
+
+
+def gen_pw_sparse(build_dir: Path) -> None:
+    in_h = 4
+    in_w = 4
+    in_c = 6
+    out_c = 5
+    sparse_vec_len = 3
+    sparse_vec_count = (in_c + sparse_vec_len - 1) // sparse_vec_len
+
+    input_count = in_h * in_w * in_c
+    weight_count = in_c * out_c
+
+    input_act = [((idx * 7 + 1) % 23) - 11 for idx in range(input_count)]
+    weights = [((idx * 3 + 6) % 13) - 6 for idx in range(weight_count)]
+
+    def weight_index(ic: int, oc: int) -> int:
+        return ic * out_c + oc
+
+    for oc in range(out_c):
+        for vec in range(sparse_vec_count):
+            if (oc + vec) % 2 == 1:
+                for elem in range(sparse_vec_len):
+                    ic = vec * sparse_vec_len + elem
+                    if ic < in_c:
+                        weights[weight_index(ic, oc)] = 0
+
+    vector_valid: list[int] = []
+    vector_actual_len: list[int] = []
+    for oc in range(out_c):
+        for vec in range(sparse_vec_count):
+            any_nonzero = False
+            actual_len = 0
+            for elem in range(sparse_vec_len):
+                ic = vec * sparse_vec_len + elem
+                if ic < in_c:
+                    actual_len += 1
+                    any_nonzero |= weights[weight_index(ic, oc)] != 0
+            vector_actual_len.append(actual_len)
+            vector_valid.append(int(any_nonzero))
+
+    expected = pointwise_conv2d(input_act, weights, in_h, in_w, in_c, out_c)
+
+    dense_cycles = in_h * in_w * out_c * in_c
+    active_cycles = 0
+    skipped_vectors = 0
+    for _oy in range(in_h):
+        for _ox in range(in_w):
+            for oc in range(out_c):
+                for vec in range(sparse_vec_count):
+                    flat = oc * sparse_vec_count + vec
+                    if vector_valid[flat]:
+                        active_cycles += vector_actual_len[flat]
+                    else:
+                        skipped_vectors += 1
+    total_sparse_cycles = active_cycles + skipped_vectors
+
+    build_dir.mkdir(parents=True, exist_ok=True)
+    write_hex(build_dir / "input_act.hex", input_act)
+    write_hex(build_dir / "weights.hex", weights)
+    write_hex(build_dir / "expected.hex", expected)
+    (build_dir / "vector_valid.bin").write_text("".join(f"{bit:b}\n" for bit in vector_valid), encoding="ascii")
+    write_hex32(build_dir / "expected_stats.hex", [dense_cycles, active_cycles, skipped_vectors, total_sparse_cycles])
+
+    target = {
+        "target": "pw_sparse",
+        "operation": "pointwise_conv2d_with_vector_wise_sparse_weight_schedule",
+        "shape": {
+            "input": {"h": in_h, "w": in_w, "c": in_c},
+            "kernel": {"h": 1, "w": 1},
+            "output": {"h": in_h, "w": in_w, "c": out_c},
+        },
+        "layout": {
+            "activation": "NHWC",
+            "weight": "cin,cout",
+            "vector_valid": "oc-major input-channel groups; each vector covers up to three weights",
+        },
+        "sparse_schedule": {
+            "sparse_vector_length": sparse_vec_len,
+            "sparse_vectors_per_output_channel": sparse_vec_count,
+            "valid_rule": "valid iff at least one weight in the vector is nonzero",
+            "skip_rule": "invalid all-zero weight vector consumes one skip cycle per output pixel and output channel",
+            "dense_equivalent_cycles": dense_cycles,
+            "active_sparse_cycles": active_cycles,
+            "skipped_vectors": skipped_vectors,
+            "total_sparse_cycles": total_sparse_cycles,
+        },
+        "arithmetic": {
+            "activation": "signed int8 two's-complement",
+            "weight": "signed int8 two's-complement",
+            "accumulator": "signed int32",
+            "output": "signed int8 saturated from accumulator",
+            "scale_zero_point": None,
+        },
+        "convolution": {
+            "stride": {"h": 1, "w": 1},
+            "padding": {"mode": "none"},
+            "activation_function": "linear",
+        },
+    }
+    (build_dir / "target.json").write_text(json.dumps(target, indent=2) + "\n", encoding="ascii")
 
 
 def avg_pool2d(
@@ -695,7 +912,21 @@ def gen_dw_reuse(build_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("target", choices=["conv", "dw", "pw", "pool", "pipeline_dense", "branch", "sparse", "dw_reuse"])
+    parser.add_argument(
+        "target",
+        choices=[
+            "conv",
+            "dw",
+            "pw",
+            "pool",
+            "pipeline_dense",
+            "branch",
+            "sparse",
+            "conv_sparse",
+            "pw_sparse",
+            "dw_reuse",
+        ],
+    )
     parser.add_argument("--build-dir", required=True, type=Path)
     args = parser.parse_args()
 
@@ -713,6 +944,10 @@ def main() -> None:
         gen_branch(args.build_dir)
     elif args.target == "sparse":
         gen_sparse(args.build_dir)
+    elif args.target == "conv_sparse":
+        gen_conv_sparse(args.build_dir)
+    elif args.target == "pw_sparse":
+        gen_pw_sparse(args.build_dir)
     elif args.target == "dw_reuse":
         gen_dw_reuse(args.build_dir)
 

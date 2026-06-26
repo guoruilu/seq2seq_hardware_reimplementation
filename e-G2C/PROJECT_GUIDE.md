@@ -82,13 +82,13 @@ Planned RTL files:
 | `rtl/eg2c_mac_array.v` | 32-lane array |
 | `rtl/eg2c_input_act_buffer.v` | Holds selected activation rows/elements for MAC lanes |
 | `rtl/eg2c_output_act_buffer.v` | Collects and writes output activations |
-| `rtl/eg2c_dense_conv2d.v` | Baseline normal convolution schedule |
+| `rtl/eg2c_dense_conv2d.v` | Normal convolution schedule with dense mode and optional sparse weight-vector skipping |
 | `rtl/eg2c_dw_conv2d.v` | Baseline depth-wise convolution schedule |
 | `rtl/eg2c_dw_reuse_conv2d.v` | DW output-equivalent CIR/D-RIR counter model; true lane-assignment scheduling remains future work |
-| `rtl/eg2c_pw_conv2d.v` | Baseline point-wise convolution schedule |
+| `rtl/eg2c_pw_conv2d.v` | Point-wise convolution schedule with dense mode and optional sparse weight-vector skipping |
 | `rtl/eg2c_detector_branch.v` | Signed detector threshold comparison and coarse/precise path selection |
 | `rtl/eg2c_sparse_selector.v` | Vector-wise sparse activation selection |
-| `rtl/eg2c_sparse_vector_mac.v` | Architecture-level sparse vector MAC with active/skip counters; normal/PW conv integration remains future work |
+| `rtl/eg2c_sparse_vector_mac.v` | Architecture-level sparse vector MAC with active/skip counters |
 | `rtl/eg2c_adapt_engine.v` | Planned histogram, argmin, threshold update module |
 | `rtl/eg2c_controller.v` | Current smoke/top-shell instruction walker with invalid-opcode and instruction-bound error reporting; operation-specific dense scheduling is in `eg2c_dense_pipeline.v` |
 | `rtl/eg2c_top.v` | Current memory/controller smoke shell; full integrated toy top remains future work |
@@ -127,6 +127,8 @@ Each stage gets a small test before integration:
 | Dense Conv | Python golden for tiny tensor |
 | DW Conv | Python golden for tiny tensor |
 | PW Conv | Python golden for tiny tensor |
+| Sparse Normal Conv | Python golden for dense-equivalent output plus active/skip counters |
+| Sparse PW Conv | Python golden for dense-equivalent output plus active/skip counters |
 | Sparse selector | compressed vector result equals dense result |
 | Adaptation engine | histogram and argmin produce expected threshold |
 | Top pipeline | toy detector chooses coarse/precise path correctly |

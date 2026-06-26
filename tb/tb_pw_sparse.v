@@ -3,11 +3,11 @@
 
 `include "eg2c_defines.vh"
 
-module tb_pw;
+module tb_pw_sparse;
 
     localparam integer IN_H = 4;
     localparam integer IN_W = 4;
-    localparam integer IN_C = 4;
+    localparam integer IN_C = 6;
     localparam integer OUT_C = 5;
     localparam integer DATA_W = `EG2C_DATA_W;
     localparam integer WEIGHT_W = `EG2C_WEIGHT_W;
@@ -31,9 +31,12 @@ module tb_pw;
 
     reg [DATA_W-1:0] input_mem [0:INPUT_COUNT-1];
     reg [WEIGHT_W-1:0] weight_mem [0:WEIGHT_COUNT-1];
+    reg valid_mem [0:SPARSE_VALID_COUNT-1];
     reg [DATA_W-1:0] expected_mem [0:OUTPUT_COUNT-1];
+    reg [31:0] expected_stats [0:3];
     reg [INPUT_COUNT*DATA_W-1:0] input_flat;
     reg [WEIGHT_COUNT*WEIGHT_W-1:0] weight_flat;
+    reg [SPARSE_VALID_COUNT-1:0] valid_vec;
 
     integer idx;
     integer mismatches;
@@ -45,15 +48,16 @@ module tb_pw;
         .IN_H(IN_H),
         .IN_W(IN_W),
         .IN_C(IN_C),
-        .OUT_C(OUT_C)
+        .OUT_C(OUT_C),
+        .SPARSE_VEC_LEN(SPARSE_VEC_LEN)
     ) dut (
         .clk_i(clk),
         .rst_ni(rst_n),
         .start_i(start),
-        .sparse_enable_i(1'b0),
+        .sparse_enable_i(1'b1),
         .input_act_i(input_flat),
         .weight_i(weight_flat),
-        .sparse_vector_valid_i({SPARSE_VALID_COUNT{1'b0}}),
+        .sparse_vector_valid_i(valid_vec),
         .output_act_o(output_flat),
         .busy_o(busy),
         .done_o(done),
@@ -69,8 +73,8 @@ module tb_pw;
 
     initial begin
         if ($test$plusargs("WAVE")) begin
-            $dumpfile("sim/build/pw/wave.vcd");
-            $dumpvars(0, tb_pw);
+            $dumpfile("sim/build/pw_sparse/wave.vcd");
+            $dumpvars(0, tb_pw_sparse);
         end
     end
 
@@ -80,28 +84,45 @@ module tb_pw;
         start = 1'b0;
         input_flat = '0;
         weight_flat = '0;
+        valid_vec = '0;
 
-        $readmemh("sim/build/pw/input_act.hex", input_mem);
-        $readmemh("sim/build/pw/weights.hex", weight_mem);
-        $readmemh("sim/build/pw/expected.hex", expected_mem);
+        $readmemh("sim/build/pw_sparse/input_act.hex", input_mem);
+        $readmemh("sim/build/pw_sparse/weights.hex", weight_mem);
+        $readmemb("sim/build/pw_sparse/vector_valid.bin", valid_mem);
+        $readmemh("sim/build/pw_sparse/expected.hex", expected_mem);
+        $readmemh("sim/build/pw_sparse/expected_stats.hex", expected_stats);
 
         for (idx = 0; idx < INPUT_COUNT; idx = idx + 1) begin
             if (^input_mem[idx] === 1'bx) begin
-                $display("ERROR: input_act[%0d] has X/Z after load", idx);
+                $display("ERROR: pw_sparse input_act[%0d] has X/Z after load", idx);
                 mismatches = mismatches + 1;
             end
         end
 
         for (idx = 0; idx < WEIGHT_COUNT; idx = idx + 1) begin
             if (^weight_mem[idx] === 1'bx) begin
-                $display("ERROR: weights[%0d] has X/Z after load", idx);
+                $display("ERROR: pw_sparse weights[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < SPARSE_VALID_COUNT; idx = idx + 1) begin
+            if (valid_mem[idx] !== 1'b0 && valid_mem[idx] !== 1'b1) begin
+                $display("ERROR: pw_sparse vector_valid[%0d] has X/Z after load", idx);
                 mismatches = mismatches + 1;
             end
         end
 
         for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
             if (^expected_mem[idx] === 1'bx) begin
-                $display("ERROR: expected[%0d] has X/Z after load", idx);
+                $display("ERROR: pw_sparse expected[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < 4; idx = idx + 1) begin
+            if (^expected_stats[idx] === 1'bx) begin
+                $display("ERROR: pw_sparse expected_stats[%0d] has X/Z after load", idx);
                 mismatches = mismatches + 1;
             end
         end
@@ -112,6 +133,10 @@ module tb_pw;
 
         for (idx = 0; idx < WEIGHT_COUNT; idx = idx + 1) begin
             weight_flat[idx*WEIGHT_W +: WEIGHT_W] = weight_mem[idx];
+        end
+
+        for (idx = 0; idx < SPARSE_VALID_COUNT; idx = idx + 1) begin
+            valid_vec[idx] = valid_mem[idx];
         end
 
         repeat (3) @(negedge clk);
@@ -130,7 +155,7 @@ module tb_pw;
         end
 
         if (!done) begin
-            $display("ERROR: pw did not assert done within timeout");
+            $display("ERROR: pw_sparse did not assert done within timeout");
             mismatches = mismatches + 1;
         end
 
@@ -138,21 +163,43 @@ module tb_pw;
             got = output_flat[idx*DATA_W +: DATA_W];
             expected = expected_mem[idx];
             if (got !== expected) begin
-                $display("ERROR: output[%0d] got=%02x expected=%02x", idx, got, expected);
+                $display("ERROR: pw_sparse output[%0d] got=%02x expected=%02x", idx, got, expected);
                 mismatches = mismatches + 1;
             end
         end
 
-        if (cycle_count !== 32'd320) begin
-            $display("ERROR: cycle_count got=%0d expected=320", cycle_count);
+        if (active_cycle_count !== expected_stats[1]) begin
+            $display("ERROR: pw_sparse active_cycle_count got=%0d expected=%0d", active_cycle_count, expected_stats[1]);
+            mismatches = mismatches + 1;
+        end
+
+        if (skipped_vector_count !== expected_stats[2]) begin
+            $display("ERROR: pw_sparse skipped_vector_count got=%0d expected=%0d", skipped_vector_count, expected_stats[2]);
+            mismatches = mismatches + 1;
+        end
+
+        if (cycle_count !== expected_stats[3]) begin
+            $display("ERROR: pw_sparse cycle_count got=%0d expected=%0d", cycle_count, expected_stats[3]);
+            mismatches = mismatches + 1;
+        end
+
+        if (expected_stats[3] !== expected_stats[1] + expected_stats[2]) begin
+            $display("ERROR: pw_sparse stats inconsistent total=%0d active+skipped=%0d",
+                     expected_stats[3], expected_stats[1] + expected_stats[2]);
+            mismatches = mismatches + 1;
+        end
+
+        if (cycle_count >= expected_stats[0]) begin
+            $display("ERROR: pw_sparse did not reduce cycles: sparse=%0d dense=%0d", cycle_count, expected_stats[0]);
             mismatches = mismatches + 1;
         end
 
         if (mismatches == 0) begin
-            $display("target=pw mismatches=0 PASS cycles=%0d", cycle_count);
+            $display("target=pw_sparse mismatches=0 PASS cycles=%0d dense_cycles=%0d skipped_vectors=%0d",
+                     cycle_count, expected_stats[0], skipped_vector_count);
             $finish;
         end else begin
-            $display("target=pw mismatches=%0d FAIL", mismatches);
+            $display("target=pw_sparse mismatches=%0d FAIL", mismatches);
             $fatal(1);
         end
     end

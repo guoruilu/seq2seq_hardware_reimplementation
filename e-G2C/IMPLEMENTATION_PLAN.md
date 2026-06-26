@@ -39,9 +39,9 @@ Standard files:
 | `scores.hex` / `thresholds.hex` | Python generator | branch testbench | signed 8-bit detector score and threshold values |
 | `coarse.hex` / `precise.hex` | Python generator | branch testbench | one signed 8-bit output vector entry per line for coarse and precise candidate paths |
 | `expected_path.bin` | Python generator | branch testbench | one binary path bit per branch case; `1` means precise/abnormal |
-| `vector_valid.bin` | Python generator | sparse testbench | one binary validity bit per sparse vector |
+| `vector_valid.bin` | Python generator | sparse schedule testbenches | one binary validity bit per sparse vector |
 | `expected_status.hex` | Python generator | `pipeline_dense` testbench | repeated per case: `expected_error`, `expected_ops`, `expected_cycles` |
-| `expected_stats.hex` | Python generator | sparse and schedule-counter testbenches | sparse order: `dense_accumulator`, `active_sparse_cycles`, `skipped_vectors`, `dense_equivalent_cycles`, `total_sparse_cycles`; DW reuse order: `simple_cycles`, `cir_cycles`, `drir_cycles` |
+| `expected_stats.hex` | Python generator | sparse and schedule-counter testbenches | sparse MAC order: `dense_accumulator`, `active_sparse_cycles`, `skipped_vectors`, `dense_equivalent_cycles`, `total_sparse_cycles`; sparse conv/PW order: `dense_equivalent_cycles`, `active_sparse_cycles`, `skipped_vectors`, `total_sparse_cycles`; DW reuse order: `simple_cycles`, `cir_cycles`, `drir_cycles` |
 | `target.json` | Python generator | Python golden, RTL testbench documentation | target shape/layout/padding/stride/arithmetic assumptions |
 | `adapt_target.json` | Python generator | adaptation golden and testbench documentation | threshold interval boundaries, score format, counter width, update window |
 | `expected.hex` | Python golden | testbench checker | one signed output activation per line; first baseline uses 8-bit two's-complement hex; branch target stores the vector selected by `expected_path.bin` |
@@ -78,6 +78,8 @@ Milestones are intentionally small. Do not skip ahead to a full pipeline before 
 | M3 | `./sim/run_sim.sh pipeline_dense` | instruction-driven dense CONV -> POOL -> DONE toy pipeline passes |
 | M4 | `./sim/run_sim.sh branch` | detector threshold selects coarse and precise paths correctly |
 | M5 | `./sim/run_sim.sh sparse` | vector-wise sparse MAC model matches dense dot-product output and reports skipped work |
+| M5A | `./sim/run_sim.sh conv_sparse` | normal convolution schedule skips all-zero sparse weight vectors while matching dense output |
+| M5B | `./sim/run_sim.sh pw_sparse` | point-wise convolution schedule skips all-zero sparse weight vectors while matching dense output |
 | M6 | `./sim/run_sim.sh dw_reuse` | DW output-equivalent reuse counter model prints simple/CIR/D-RIR utilization counters |
 | M7 | `./sim/run_sim.sh adapt` | threshold adaptation engine matches Python golden |
 | M8 | `./sim/run_sim.sh top` | integrated e-G2C toy system passes normal and abnormal scenarios |
@@ -309,7 +311,7 @@ Tasks:
 - Define index format.
 - Implement `eg2c_sparse_selector.v`.
 - Implement an architecture-level sparse vector MAC target.
-- Later: add sparse mode to normal conv and point-wise conv schedules.
+- Add sparse mode to normal conv and point-wise conv schedules.
 - Count skipped vectors and active MAC cycles.
 
 Verification:
@@ -321,7 +323,8 @@ Verification:
 Acceptance:
 - Sparse vector-MAC output equals dense dot-product output.
 - Simulated active work decreases on sparse test cases.
-- Full normal/PW conv schedule integration is tracked as follow-up work.
+- Sparse normal-conv and point-wise-conv schedule outputs equal dense Python golden output.
+- Sparse normal-conv and point-wise-conv schedule counters show lower total cycles than the dense-equivalent schedules.
 
 ## Phase 7 -- Depth-Wise Conv Reuse Modes
 
@@ -452,4 +455,4 @@ The first integration milestone is:
 
 It currently runs compact dense toy programs, including CONV -> POOL -> DONE, DONE-only, NOP-prefixed, and illegal-opcode cases, without sparse optimization. Detector/coarse/precise top-level sequencing is reserved for the later `top` target.
 
-Sparse mode and the DW reuse counter model were added after the dense pipeline milestone; integrating sparse mode and true DW lane scheduling into the normal top-level pipeline remains future work.
+Sparse mode and the DW reuse counter model were added after the dense pipeline milestone. Sparse weight-vector skipping is now integrated into the standalone normal-conv and point-wise-conv schedulers; wiring those sparse schedules into the future integrated top-level pipeline and implementing true DW lane scheduling remain future work.

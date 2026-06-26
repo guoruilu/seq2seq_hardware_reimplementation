@@ -11,7 +11,9 @@ module eg2c_pw_conv2d #(
     parameter integer IN_W     = 4,
     parameter integer IN_C     = 4,
     parameter integer OUT_C    = 5,
-    parameter integer SPARSE_VEC_LEN = 3
+    parameter integer SPARSE_VEC_LEN = 3,
+    parameter integer SPARSE_VEC_COUNT = (IN_C + ((SPARSE_VEC_LEN > 0) ? SPARSE_VEC_LEN : 1) - 1) /
+                                         ((SPARSE_VEC_LEN > 0) ? SPARSE_VEC_LEN : 1)
 ) (
     input  wire                                    clk_i,
     input  wire                                    rst_ni,
@@ -19,7 +21,7 @@ module eg2c_pw_conv2d #(
     input  wire                                    sparse_enable_i,
     input  wire [IN_H*IN_W*IN_C*DATA_W-1:0]       input_act_i,
     input  wire [IN_C*OUT_C*WEIGHT_W-1:0]         weight_i,
-    input  wire [OUT_C*((IN_C + SPARSE_VEC_LEN - 1)/SPARSE_VEC_LEN)-1:0] sparse_vector_valid_i,
+    input  wire [OUT_C*SPARSE_VEC_COUNT-1:0]        sparse_vector_valid_i,
     output reg  [IN_H*IN_W*OUT_C*DATA_W-1:0]      output_act_o,
     output reg                                     busy_o,
     output reg                                     done_o,
@@ -33,7 +35,8 @@ module eg2c_pw_conv2d #(
     localparam integer STATE_DONE = 2'd2;
     localparam integer ACC_TERMS = IN_C;
     localparam integer ACC_REQ_W = DATA_W + WEIGHT_W + ((ACC_TERMS > 1) ? $clog2(ACC_TERMS) : 0);
-    localparam integer SPARSE_VEC_COUNT = (IN_C + SPARSE_VEC_LEN - 1) / SPARSE_VEC_LEN;
+    localparam integer SPARSE_VEC_LEN_SAFE = (SPARSE_VEC_LEN > 0) ? SPARSE_VEC_LEN : 1;
+    localparam integer SPARSE_VEC_COUNT_REQ = (IN_C + SPARSE_VEC_LEN_SAFE - 1) / SPARSE_VEC_LEN_SAFE;
 
     reg [1:0] state_q;
     integer out_y_q;
@@ -99,16 +102,19 @@ module eg2c_pw_conv2d #(
         if (SPARSE_VEC_LEN <= 0) begin
             $fatal(1, "eg2c_pw_conv2d SPARSE_VEC_LEN must be positive");
         end
+        if (SPARSE_VEC_COUNT != SPARSE_VEC_COUNT_REQ) begin
+            $fatal(1, "eg2c_pw_conv2d SPARSE_VEC_COUNT does not match SPARSE_VEC_LEN and input channels");
+        end
     end
 
     always @(out_y_q or out_x_q or out_c_q or in_c_q or acc_q or input_act_i or weight_i or sparse_enable_i or sparse_vector_valid_i) begin
         act_value = get_act(out_y_q, out_x_q, in_c_q);
         weight_value = get_weight(in_c_q, out_c_q);
-        sparse_vec_index = in_c_q / SPARSE_VEC_LEN;
+        sparse_vec_index = in_c_q / SPARSE_VEC_LEN_SAFE;
         sparse_valid_index = out_c_q * SPARSE_VEC_COUNT + sparse_vec_index;
-        next_skip_in_c = in_c_q + SPARSE_VEC_LEN;
+        next_skip_in_c = in_c_q + SPARSE_VEC_LEN_SAFE;
         // vector_valid marks sparse weight vectors with at least one nonzero term.
-        vector_start = ((in_c_q - (sparse_vec_index * SPARSE_VEC_LEN)) == 0);
+        vector_start = ((in_c_q - (sparse_vec_index * SPARSE_VEC_LEN_SAFE)) == 0);
         vector_skip = sparse_enable_i && vector_start && !sparse_vector_valid_i[sparse_valid_index];
         vector_last = (sparse_vec_index == SPARSE_VEC_COUNT - 1);
         product_value = act_value * weight_value;

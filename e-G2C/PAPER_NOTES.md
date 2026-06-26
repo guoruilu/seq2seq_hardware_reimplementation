@@ -133,7 +133,7 @@ Paper idea:
 
 Architecture-level plan:
 - First implement dense convolution so the math and memory layout are correct.
-- Add sparse vector mode in two steps:
+- Sparse vector mode has been implemented in two architecture-level steps:
   - standalone selector/MAC target using explicit sparse indices and vector-valid bits;
   - normal-conv and point-wise-conv schedules that skip all-zero sparse weight vectors and report active/skip counters.
 - Future top-level integration should connect compressed weight/index streams through the activation buffer path rather than only using generated vector-valid masks.

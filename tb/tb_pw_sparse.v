@@ -7,7 +7,7 @@ module tb_pw_sparse;
 
     localparam integer IN_H = 4;
     localparam integer IN_W = 4;
-    localparam integer IN_C = 6;
+    localparam integer IN_C = 5;
     localparam integer OUT_C = 5;
     localparam integer DATA_W = `EG2C_DATA_W;
     localparam integer WEIGHT_W = `EG2C_WEIGHT_W;
@@ -18,6 +18,7 @@ module tb_pw_sparse;
     localparam integer SPARSE_VEC_LEN = 3;
     localparam integer SPARSE_VEC_COUNT = (IN_C + SPARSE_VEC_LEN - 1) / SPARSE_VEC_LEN;
     localparam integer SPARSE_VALID_COUNT = OUT_C * SPARSE_VEC_COUNT;
+    localparam integer DENSE_EQUIV_CYCLES = OUTPUT_COUNT * IN_C;
 
     reg clk;
     reg rst_n;
@@ -170,6 +171,11 @@ module tb_pw_sparse;
 
         if (active_cycle_count !== expected_stats[1]) begin
             $display("ERROR: pw_sparse active_cycle_count got=%0d expected=%0d", active_cycle_count, expected_stats[1]);
+            mismatches = mismatches + 1;
+        end
+
+        if (expected_stats[0] !== DENSE_EQUIV_CYCLES) begin
+            $display("ERROR: pw_sparse dense baseline got=%0d expected=%0d", expected_stats[0], DENSE_EQUIV_CYCLES);
             mismatches = mismatches + 1;
         end
 

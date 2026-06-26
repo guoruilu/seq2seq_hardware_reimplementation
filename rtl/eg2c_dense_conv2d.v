@@ -15,7 +15,9 @@ module eg2c_dense_conv2d #(
     parameter integer K_W      = 3,
     parameter integer PAD_H    = 1,
     parameter integer PAD_W    = 1,
-    parameter integer SPARSE_VEC_LEN = K_W * IN_C
+    parameter integer SPARSE_VEC_LEN = K_W * IN_C,
+    parameter integer SPARSE_VEC_COUNT = (K_H*K_W*IN_C + ((SPARSE_VEC_LEN > 0) ? SPARSE_VEC_LEN : 1) - 1) /
+                                         ((SPARSE_VEC_LEN > 0) ? SPARSE_VEC_LEN : 1)
 ) (
     input  wire                                      clk_i,
     input  wire                                      rst_ni,
@@ -23,7 +25,7 @@ module eg2c_dense_conv2d #(
     input  wire                                      sparse_enable_i,
     input  wire [IN_H*IN_W*IN_C*DATA_W-1:0]         input_act_i,
     input  wire [K_H*K_W*IN_C*OUT_C*WEIGHT_W-1:0]   weight_i,
-    input  wire [OUT_C*((K_H*K_W*IN_C + SPARSE_VEC_LEN - 1)/SPARSE_VEC_LEN)-1:0] sparse_vector_valid_i,
+    input  wire [OUT_C*SPARSE_VEC_COUNT-1:0]          sparse_vector_valid_i,
     output reg  [IN_H*IN_W*OUT_C*DATA_W-1:0]        output_act_o,
     output reg                                       busy_o,
     output reg                                       done_o,
@@ -37,7 +39,8 @@ module eg2c_dense_conv2d #(
     localparam integer STATE_DONE = 2'd2;
     localparam integer ACC_TERMS = K_H * K_W * IN_C;
     localparam integer ACC_REQ_W = DATA_W + WEIGHT_W + ((ACC_TERMS > 1) ? $clog2(ACC_TERMS) : 0);
-    localparam integer SPARSE_VEC_COUNT = (ACC_TERMS + SPARSE_VEC_LEN - 1) / SPARSE_VEC_LEN;
+    localparam integer SPARSE_VEC_LEN_SAFE = (SPARSE_VEC_LEN > 0) ? SPARSE_VEC_LEN : 1;
+    localparam integer SPARSE_VEC_COUNT_REQ = (ACC_TERMS + SPARSE_VEC_LEN_SAFE - 1) / SPARSE_VEC_LEN_SAFE;
 
     reg [1:0] state_q;
     integer out_y_q;
@@ -114,6 +117,9 @@ module eg2c_dense_conv2d #(
         if (SPARSE_VEC_LEN <= 0) begin
             $fatal(1, "eg2c_dense_conv2d SPARSE_VEC_LEN must be positive");
         end
+        if (SPARSE_VEC_COUNT != SPARSE_VEC_COUNT_REQ) begin
+            $fatal(1, "eg2c_dense_conv2d SPARSE_VEC_COUNT does not match SPARSE_VEC_LEN and kernel shape");
+        end
     end
 
     always @(out_y_q or out_x_q or out_c_q or ker_y_q or ker_x_q or in_c_q or acc_q or input_act_i or weight_i or sparse_enable_i or sparse_vector_valid_i) begin
@@ -122,15 +128,15 @@ module eg2c_dense_conv2d #(
         act_value = {DATA_W{1'b0}};
         weight_value = get_weight(ker_y_q, ker_x_q, in_c_q, out_c_q);
         term_index = (ker_y_q * K_W + ker_x_q) * IN_C + in_c_q;
-        sparse_vec_index = term_index / SPARSE_VEC_LEN;
+        sparse_vec_index = term_index / SPARSE_VEC_LEN_SAFE;
         sparse_valid_index = out_c_q * SPARSE_VEC_COUNT + sparse_vec_index;
-        next_skip_term_index = term_index + SPARSE_VEC_LEN;
+        next_skip_term_index = term_index + SPARSE_VEC_LEN_SAFE;
         next_skip_ker_y = next_skip_term_index / (K_W * IN_C);
         next_skip_rem = next_skip_term_index - (next_skip_ker_y * K_W * IN_C);
         next_skip_ker_x = next_skip_rem / IN_C;
         next_skip_in_c = next_skip_rem - (next_skip_ker_x * IN_C);
         // vector_valid marks sparse weight vectors with at least one nonzero term.
-        vector_start = ((term_index - (sparse_vec_index * SPARSE_VEC_LEN)) == 0);
+        vector_start = ((term_index - (sparse_vec_index * SPARSE_VEC_LEN_SAFE)) == 0);
         vector_skip = sparse_enable_i && vector_start && !sparse_vector_valid_i[sparse_valid_index];
         vector_last = (sparse_vec_index == SPARSE_VEC_COUNT - 1);
 

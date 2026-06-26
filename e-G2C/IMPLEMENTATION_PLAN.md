@@ -32,7 +32,7 @@ Standard files:
 | File | Producer | Consumer | Format |
 |---|---|---|---|
 | `input_act.hex` | Python generator | testbench activation memory loader | one 8-bit two's-complement value per line, hex without `0x` |
-| `weights.hex` | Python generator | testbench weight memory loader | one signed weight per line; 8-bit int mode uses 2 hex digits, 4-bit mode is packed only after sparse mode is implemented |
+| `weights.hex` | Python generator | testbench weight memory loader | one signed weight per line; 8-bit int mode uses 2 hex digits, while 4-bit packed/power-of-2 weight mode remains future weight-format work |
 | `indices.hex` | Python generator | testbench index memory loader | one unsigned index word per line; width documented per target |
 | `instr.hex` | Python generator | instruction SRAM loader | one 32-bit instruction per line, big-endian human-readable hex |
 | `ctx.hex` | Python generator | optional context memory loader | one context word per line; width documented in the target README/header |

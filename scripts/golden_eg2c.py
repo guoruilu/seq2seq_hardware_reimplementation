@@ -448,7 +448,7 @@ def pointwise_conv2d(input_act: list[int], weights: list[int], in_h: int, in_w: 
 def gen_pw_sparse(build_dir: Path) -> None:
     in_h = 4
     in_w = 4
-    in_c = 6
+    in_c = 5
     out_c = 5
     sparse_vec_len = 3
     sparse_vec_count = (in_c + sparse_vec_len - 1) // sparse_vec_len

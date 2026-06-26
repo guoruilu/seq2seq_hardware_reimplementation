@@ -147,7 +147,9 @@ The milestone order is:
 | Average pooling | `./sim/run_sim.sh pool` |
 | Dense instruction pipeline | `./sim/run_sim.sh pipeline_dense` |
 | Detector branch | `./sim/run_sim.sh branch` |
-| Sparse mode | `./sim/run_sim.sh sparse` |
+| Sparse vector MAC | `./sim/run_sim.sh sparse` |
+| Sparse normal conv | `./sim/run_sim.sh conv_sparse` |
+| Sparse point-wise conv | `./sim/run_sim.sh pw_sparse` |
 | DW reuse modes | `./sim/run_sim.sh dw_reuse` |
 | Threshold adaptation | `./sim/run_sim.sh adapt` |
 | Integrated toy system | `./sim/run_sim.sh top` |

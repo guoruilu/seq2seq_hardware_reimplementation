@@ -7,7 +7,7 @@ wave_arg="${2:-}"
 
 usage() {
     cat <<USAGE
-Usage: ./sim/run_sim.sh <target> [wave]
+Usage: ./sim/run_sim.sh <target> [wave|--wave]
 
 Targets:
   smoke    Compile the minimal e-G2C RTL shell and run the smoke test
@@ -27,7 +27,8 @@ Targets:
   dw_reuse Verify DW output equivalence and CIR/D-RIR schedule counters
 
 Options:
-  wave     Also write sim/build/<target>/wave.vcd when supported
+  wave, --wave
+           Also write sim/build/<target>/wave.vcd when supported
 USAGE
 }
 

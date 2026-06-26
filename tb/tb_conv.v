@@ -154,6 +154,16 @@ module tb_conv;
             mismatches = mismatches + 1;
         end
 
+        if (active_cycle_count !== cycle_count) begin
+            $display("ERROR: active_cycle_count got=%0d expected=%0d in dense mode", active_cycle_count, cycle_count);
+            mismatches = mismatches + 1;
+        end
+
+        if (skipped_vector_count !== 32'd0) begin
+            $display("ERROR: skipped_vector_count got=%0d expected=0 in dense mode", skipped_vector_count);
+            mismatches = mismatches + 1;
+        end
+
         if (mismatches == 0) begin
             $display("target=conv mismatches=0 PASS cycles=%0d", cycle_count);
             $finish;

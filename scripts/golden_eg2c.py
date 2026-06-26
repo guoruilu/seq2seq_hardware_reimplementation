@@ -30,6 +30,87 @@ def write_hex32(path: Path, values: list[int]) -> None:
     path.write_text("".join(f"{value & 0xFFFFFFFF:08x}\n" for value in values), encoding="ascii")
 
 
+def _dw_trace_coord4(value: int) -> int:
+    if value < -8:
+        return 0
+    if value > 7:
+        return 0xF
+    return (value + 8) & 0xF
+
+
+def _dw_trace_unsigned4(value: int) -> int:
+    if value < 0:
+        return 0xF
+    if value > 14:
+        return 0xE
+    return value & 0xF
+
+
+def _dw_trace_descriptor(
+    lane: int,
+    oy: int,
+    ox: int,
+    ch: int,
+    ky: int,
+    kx: int,
+    active: bool,
+) -> int:
+    return (
+        (_dw_trace_unsigned4(lane) << 24)
+        | (_dw_trace_coord4(oy) << 20)
+        | (_dw_trace_coord4(ox) << 16)
+        | (_dw_trace_unsigned4(ch) << 12)
+        | (_dw_trace_unsigned4(ky) << 8)
+        | (_dw_trace_unsigned4(kx) << 4)
+        | (1 if active else 0)
+    )
+
+
+def _dw_trace_mix(current: int, descriptor: int) -> int:
+    current &= 0xFFFFFFFF
+    rotated = ((current << 5) & 0xFFFFFFFF) | (current >> 27)
+    return (rotated ^ descriptor) & 0xFFFFFFFF
+
+
+def _dw_term_active(
+    in_h: int,
+    in_w: int,
+    channels: int,
+    k_h: int,
+    k_w: int,
+    pad_h: int,
+    pad_w: int,
+    oy: int,
+    ox: int,
+    ch: int,
+    ky: int,
+    kx: int,
+) -> bool:
+    if not (0 <= oy < in_h and 0 <= ox < in_w and 0 <= ch < channels and 0 <= ky < k_h and 0 <= kx < k_w):
+        return False
+    iy = oy + ky - pad_h
+    ix = ox + kx - pad_w
+    return 0 <= iy < in_h and 0 <= ix < in_w
+
+
+def _dw_trace_signature(
+    cycle_index: int,
+    lanes: list[tuple[int, int, int, int, int, int]],
+    in_h: int,
+    in_w: int,
+    channels: int,
+    k_h: int,
+    k_w: int,
+    pad_h: int,
+    pad_w: int,
+) -> int:
+    value = (0x9E3779B9 ^ cycle_index) & 0xFFFFFFFF
+    for lane, oy, ox, ch, ky, kx in lanes:
+        active = _dw_term_active(in_h, in_w, channels, k_h, k_w, pad_h, pad_w, oy, ox, ch, ky, kx)
+        value = _dw_trace_mix(value, _dw_trace_descriptor(lane, oy, ox, ch, ky, kx, active))
+    return value
+
+
 def write_manifest(build_dir: Path) -> None:
     files: dict[str, dict[str, int | str]] = {}
     for path in sorted(build_dir.iterdir()):
@@ -886,6 +967,58 @@ def gen_dw_reuse(build_dir: Path) -> None:
     cir_idle_slots = cir_cycles * k_h - cir_active_slots
     drir_idle_slots = drir_cycles * 2 - drir_active_slots
 
+    simple_trace: list[int] = []
+    for cycle in range(simple_cycles):
+        tmp = cycle
+        kx = tmp % k_w
+        tmp //= k_w
+        ky = tmp % k_h
+        tmp //= k_h
+        ch = tmp % channels
+        tmp //= channels
+        ox = tmp % in_w
+        tmp //= in_w
+        oy = tmp
+        simple_trace.append(
+            _dw_trace_signature(cycle, [(0, oy, ox, ch, ky, kx)], in_h, in_w, channels, k_h, k_w, pad_h, pad_w)
+        )
+
+    cir_trace: list[int] = []
+    for cycle in range(cir_cycles):
+        tmp = cycle
+        kx = tmp % k_w
+        tmp //= k_w
+        ch = tmp % channels
+        tmp //= channels
+        ix = tmp % in_w
+        tmp //= in_w
+        iy = tmp
+        lanes = []
+        for lane in range(k_h):
+            ky = lane
+            oy = iy - ky + pad_h
+            ox = ix - kx + pad_w
+            lanes.append((lane, oy, ox, ch, ky, kx))
+        cir_trace.append(_dw_trace_signature(cycle, lanes, in_h, in_w, channels, k_h, k_w, pad_h, pad_w))
+
+    drir_trace: list[int] = []
+    for cycle in range(drir_cycles):
+        tmp = cycle
+        pair_idx = tmp % drir_pair_count
+        tmp //= drir_pair_count
+        kx = tmp % k_w
+        tmp //= k_w
+        ky = tmp % k_h
+        tmp //= k_h
+        ch = tmp % channels
+        tmp //= channels
+        oy = tmp
+        lanes = []
+        for lane in range(2):
+            ox = pair_idx * 2 + lane
+            lanes.append((lane, oy, ox, ch, ky, kx))
+        drir_trace.append(_dw_trace_signature(cycle, lanes, in_h, in_w, channels, k_h, k_w, pad_h, pad_w))
+
     build_dir.mkdir(parents=True, exist_ok=True)
     write_hex(build_dir / "input_act.hex", input_act)
     write_hex(build_dir / "weights.hex", weights)
@@ -904,6 +1037,9 @@ def gen_dw_reuse(build_dir: Path) -> None:
             drir_idle_slots,
         ],
     )
+    write_hex32(build_dir / "simple_trace.hex", simple_trace)
+    write_hex32(build_dir / "cir_trace.hex", cir_trace)
+    write_hex32(build_dir / "drir_trace.hex", drir_trace)
 
     target = {
         "target": "dw_reuse",
@@ -940,6 +1076,11 @@ def gen_dw_reuse(build_dir: Path) -> None:
             "simple_idle_slots": simple_idle_slots,
             "cir_idle_slots": cir_idle_slots,
             "drir_idle_slots": drir_idle_slots,
+            "trace_files": {
+                "simple": "simple_trace.hex",
+                "cir": "cir_trace.hex",
+                "drir": "drir_trace.hex",
+            },
             "cir_lane_mapping": "one input activation position and one kernel column feed K_H output-row lanes",
             "drir_lane_mapping": "one output row/kernel term feeds two adjacent output-column lanes",
             "note": "Architecture-level lane-assignment schedule; not an ASIC cycle-accurate claim.",

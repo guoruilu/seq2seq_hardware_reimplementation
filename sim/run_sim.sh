@@ -4,12 +4,27 @@ set -euo pipefail
 root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="${1:-}"
 wave_arg="${2:-}"
+implemented_targets=(
+    smoke
+    mac
+    conv
+    dw
+    pw
+    pool
+    pipeline_dense
+    branch
+    sparse
+    conv_sparse
+    pw_sparse
+    dw_reuse
+)
 
 usage() {
     cat <<USAGE
 Usage: ./sim/run_sim.sh <target> [wave|--wave]
 
 Targets:
+  all      Run all implemented regression targets
   smoke    Compile the minimal e-G2C RTL shell and run the smoke test
   mac      Verify signed MAC lane and 32-lane MAC array arithmetic
   conv     Verify dense 3x3 normal convolution against Python golden output
@@ -24,7 +39,7 @@ Targets:
            Verify sparse-weight vector skipping inside normal-conv scheduling
   pw_sparse
            Verify sparse-weight vector skipping inside point-wise-conv scheduling
-  dw_reuse Verify DW output equivalence and CIR/D-RIR schedule counters
+  dw_reuse Verify DW simple/CIR/D-RIR lane schedules and counters
 
 Options:
   wave, --wave
@@ -35,6 +50,24 @@ USAGE
 if [[ "$#" -lt 1 || "$#" -gt 2 ]]; then
     usage
     exit 2
+fi
+
+if [[ -n "$wave_arg" && "$wave_arg" != "wave" && "$wave_arg" != "--wave" ]]; then
+    echo "Unknown option: $wave_arg" >&2
+    usage >&2
+    exit 2
+fi
+
+if [[ "$target" == "all" ]]; then
+    if [[ -n "$wave_arg" ]]; then
+        echo "The all target does not support wave output" >&2
+        exit 2
+    fi
+
+    for one_target in "${implemented_targets[@]}"; do
+        "$0" "$one_target"
+    done
+    exit 0
 fi
 
 case "$target" in
@@ -80,12 +113,6 @@ case "$target" in
         exit 2
         ;;
 esac
-
-if [[ -n "$wave_arg" && "$wave_arg" != "wave" && "$wave_arg" != "--wave" ]]; then
-    echo "Unknown option: $wave_arg" >&2
-    usage >&2
-    exit 2
-fi
 
 build_dir="$root_dir/sim/build/$target"
 rm -rf "$build_dir"

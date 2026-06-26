@@ -126,6 +126,7 @@ Each stage gets a small test before integration:
 | Act/weight/index memories | read/write smoke tests |
 | Dense Conv | Python golden for tiny tensor |
 | DW Conv | Python golden for tiny tensor |
+| DW reuse lane schedules | Python golden output plus per-cycle simple/CIR/D-RIR trace checks |
 | PW Conv | Python golden for tiny tensor |
 | Sparse Normal Conv | Python golden for dense-equivalent output plus active/skip counters |
 | Sparse PW Conv | Python golden for dense-equivalent output plus active/skip counters |
@@ -151,8 +152,9 @@ The milestone order is:
 | Sparse normal conv | `./sim/run_sim.sh conv_sparse` |
 | Sparse point-wise conv | `./sim/run_sim.sh pw_sparse` |
 | DW reuse lane schedules | `./sim/run_sim.sh dw_reuse` |
-| Threshold adaptation | `./sim/run_sim.sh adapt` |
-| Integrated toy system | `./sim/run_sim.sh top` |
+| Full implemented regression | `./sim/run_sim.sh all` |
+| Threshold adaptation | planned: `./sim/run_sim.sh adapt` |
+| Integrated toy system | planned: `./sim/run_sim.sh top` |
 
 Generated test data goes under `sim/build/<target>/`. Hex file formats and PASS/FAIL rules are defined in `IMPLEMENTATION_PLAN.md`.
 

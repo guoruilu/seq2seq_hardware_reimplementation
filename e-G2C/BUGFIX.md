@@ -94,3 +94,22 @@ Fix:
 
 Prevention:
 - Instruction-driven tests must include at least one no-op path, one shifted legal path, and one illegal path.
+
+## #006 -- DW reuse wrapper accepted unsynchronized child starts
+
+Symptoms:
+- Independent RTL review found that a held or repeated `start_i` could restart shorter DW reuse schedules while the longer simple schedule was still running.
+- CIR and D-RIR finish earlier than simple on the generated target, so forwarding raw `start_i` let those children accept a new operation independently.
+
+Root cause:
+- `eg2c_dw_reuse_conv2d` forwarded the top-level `start_i` directly to the simple, CIR, and D-RIR child schedulers.
+- The wrapper also cleared done-seen state on any asserted `start_i`, even when not all children accepted the same operation.
+
+Fix:
+- Added wrapper-level start-edge gating and fan out only one synchronized child start pulse while the wrapper is idle.
+- Changed wrapper `busy_o` to stay asserted for the whole aggregate operation until the wrapper emits `done_o`.
+- Extended `tb_dw_reuse` to hold `start` high until `done`, which catches independent child restarts.
+
+Prevention:
+- Multi-engine wrappers should own the transaction handshake and should never pass raw level-sensitive starts to children with different latencies.
+- Stress tests should include held-start or repeated-start cases for any wrapper that coordinates multiple child engines.

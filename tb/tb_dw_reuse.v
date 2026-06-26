@@ -16,6 +16,10 @@ module tb_dw_reuse;
     localparam integer INPUT_COUNT = IN_H * IN_W * CHANNELS;
     localparam integer WEIGHT_COUNT = K_H * K_W * CHANNELS;
     localparam integer OUTPUT_COUNT = IN_H * IN_W * CHANNELS;
+    localparam integer SIMPLE_CYCLES = IN_H * IN_W * CHANNELS * K_H * K_W;
+    localparam integer CIR_CYCLES = IN_H * IN_W * CHANNELS * K_W;
+    localparam integer DRIR_PAIR_COUNT = (IN_W + 1) / 2;
+    localparam integer DRIR_CYCLES = IN_H * CHANNELS * K_H * K_W * DRIR_PAIR_COUNT;
 
     reg clk;
     reg rst_n;
@@ -31,6 +35,12 @@ module tb_dw_reuse;
     wire [31:0] simple_idle_lanes;
     wire [31:0] cir_idle_lanes;
     wire [31:0] drir_idle_lanes;
+    wire simple_trace_valid;
+    wire cir_trace_valid;
+    wire drir_trace_valid;
+    wire [31:0] simple_trace;
+    wire [31:0] cir_trace;
+    wire [31:0] drir_trace;
     wire [OUTPUT_COUNT*DATA_W-1:0] simple_output_flat;
     wire [OUTPUT_COUNT*DATA_W-1:0] cir_output_flat;
     wire [OUTPUT_COUNT*DATA_W-1:0] drir_output_flat;
@@ -39,12 +49,19 @@ module tb_dw_reuse;
     reg [WEIGHT_W-1:0] weight_mem [0:WEIGHT_COUNT-1];
     reg [DATA_W-1:0] expected_mem [0:OUTPUT_COUNT-1];
     reg [31:0] expected_stats [0:8];
+    reg [31:0] expected_simple_trace [0:SIMPLE_CYCLES-1];
+    reg [31:0] expected_cir_trace [0:CIR_CYCLES-1];
+    reg [31:0] expected_drir_trace [0:DRIR_CYCLES-1];
     reg [INPUT_COUNT*DATA_W-1:0] input_flat;
     reg [WEIGHT_COUNT*WEIGHT_W-1:0] weight_flat;
 
     integer idx;
     integer mismatches;
     integer cycles_waited;
+    integer simple_trace_idx;
+    integer cir_trace_idx;
+    integer drir_trace_idx;
+    reg busy_gap_seen;
     reg [DATA_W-1:0] got;
     reg [DATA_W-1:0] expected;
 
@@ -75,7 +92,13 @@ module tb_dw_reuse;
         .drir_active_lane_count_o(drir_active_lanes),
         .simple_idle_lane_count_o(simple_idle_lanes),
         .cir_idle_lane_count_o(cir_idle_lanes),
-        .drir_idle_lane_count_o(drir_idle_lanes)
+        .drir_idle_lane_count_o(drir_idle_lanes),
+        .simple_trace_valid_o(simple_trace_valid),
+        .cir_trace_valid_o(cir_trace_valid),
+        .drir_trace_valid_o(drir_trace_valid),
+        .simple_trace_o(simple_trace),
+        .cir_trace_o(cir_trace),
+        .drir_trace_o(drir_trace)
     );
 
     initial begin
@@ -101,6 +124,9 @@ module tb_dw_reuse;
         $readmemh("sim/build/dw_reuse/weights.hex", weight_mem);
         $readmemh("sim/build/dw_reuse/expected.hex", expected_mem);
         $readmemh("sim/build/dw_reuse/expected_stats.hex", expected_stats);
+        $readmemh("sim/build/dw_reuse/simple_trace.hex", expected_simple_trace);
+        $readmemh("sim/build/dw_reuse/cir_trace.hex", expected_cir_trace);
+        $readmemh("sim/build/dw_reuse/drir_trace.hex", expected_drir_trace);
 
         for (idx = 0; idx < INPUT_COUNT; idx = idx + 1) begin
             if (^input_mem[idx] === 1'bx) begin
@@ -130,6 +156,27 @@ module tb_dw_reuse;
             end
         end
 
+        for (idx = 0; idx < SIMPLE_CYCLES; idx = idx + 1) begin
+            if (^expected_simple_trace[idx] === 1'bx) begin
+                $display("ERROR: simple_trace[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < CIR_CYCLES; idx = idx + 1) begin
+            if (^expected_cir_trace[idx] === 1'bx) begin
+                $display("ERROR: cir_trace[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
+        for (idx = 0; idx < DRIR_CYCLES; idx = idx + 1) begin
+            if (^expected_drir_trace[idx] === 1'bx) begin
+                $display("ERROR: drir_trace[%0d] has X/Z after load", idx);
+                mismatches = mismatches + 1;
+            end
+        end
+
         for (idx = 0; idx < INPUT_COUNT; idx = idx + 1) begin
             input_flat[idx*DATA_W +: DATA_W] = input_mem[idx];
         end
@@ -143,18 +190,78 @@ module tb_dw_reuse;
 
         @(negedge clk);
         start = 1'b1;
-        @(negedge clk);
-        start = 1'b0;
 
         cycles_waited = 0;
+        simple_trace_idx = 0;
+        cir_trace_idx = 0;
+        drir_trace_idx = 0;
+        busy_gap_seen = 1'b0;
         while (!done && cycles_waited < 2000) begin
             @(posedge clk);
             #1;
+            if (!done && !busy && cycles_waited > 0 && !busy_gap_seen) begin
+                $display("ERROR: dw_reuse deasserted busy before done");
+                mismatches = mismatches + 1;
+                busy_gap_seen = 1'b1;
+            end
+
+            if (simple_trace_valid) begin
+                if (simple_trace_idx >= SIMPLE_CYCLES) begin
+                    $display("ERROR: too many simple trace cycles");
+                    mismatches = mismatches + 1;
+                end else if (simple_trace !== expected_simple_trace[simple_trace_idx]) begin
+                    $display("ERROR: simple_trace[%0d] got=%08x expected=%08x",
+                             simple_trace_idx, simple_trace, expected_simple_trace[simple_trace_idx]);
+                    mismatches = mismatches + 1;
+                end
+                simple_trace_idx = simple_trace_idx + 1;
+            end
+
+            if (cir_trace_valid) begin
+                if (cir_trace_idx >= CIR_CYCLES) begin
+                    $display("ERROR: too many CIR trace cycles");
+                    mismatches = mismatches + 1;
+                end else if (cir_trace !== expected_cir_trace[cir_trace_idx]) begin
+                    $display("ERROR: cir_trace[%0d] got=%08x expected=%08x",
+                             cir_trace_idx, cir_trace, expected_cir_trace[cir_trace_idx]);
+                    mismatches = mismatches + 1;
+                end
+                cir_trace_idx = cir_trace_idx + 1;
+            end
+
+            if (drir_trace_valid) begin
+                if (drir_trace_idx >= DRIR_CYCLES) begin
+                    $display("ERROR: too many D-RIR trace cycles");
+                    mismatches = mismatches + 1;
+                end else if (drir_trace !== expected_drir_trace[drir_trace_idx]) begin
+                    $display("ERROR: drir_trace[%0d] got=%08x expected=%08x",
+                             drir_trace_idx, drir_trace, expected_drir_trace[drir_trace_idx]);
+                    mismatches = mismatches + 1;
+                end
+                drir_trace_idx = drir_trace_idx + 1;
+            end
+
             cycles_waited = cycles_waited + 1;
         end
+        start = 1'b0;
 
         if (!done) begin
             $display("ERROR: dw_reuse did not assert done within timeout");
+            mismatches = mismatches + 1;
+        end
+
+        if (simple_trace_idx != SIMPLE_CYCLES) begin
+            $display("ERROR: simple trace length got=%0d expected=%0d", simple_trace_idx, SIMPLE_CYCLES);
+            mismatches = mismatches + 1;
+        end
+
+        if (cir_trace_idx != CIR_CYCLES) begin
+            $display("ERROR: CIR trace length got=%0d expected=%0d", cir_trace_idx, CIR_CYCLES);
+            mismatches = mismatches + 1;
+        end
+
+        if (drir_trace_idx != DRIR_CYCLES) begin
+            $display("ERROR: D-RIR trace length got=%0d expected=%0d", drir_trace_idx, DRIR_CYCLES);
             mismatches = mismatches + 1;
         end
 

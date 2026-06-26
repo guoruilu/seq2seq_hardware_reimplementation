@@ -84,6 +84,8 @@ Milestones are intentionally small. Do not skip ahead to a full pipeline before 
 | M7 | `./sim/run_sim.sh adapt` | threshold adaptation engine matches Python golden |
 | M8 | `./sim/run_sim.sh top` | integrated e-G2C toy system passes normal and abnormal scenarios |
 
+`./sim/run_sim.sh all` runs every currently implemented target through M6. M7 and M8 are planned commands and should appear in the script usage only after implementation.
+
 ## Phase 0 -- Setup And Paper Extraction
 
 Goal:
@@ -335,6 +337,7 @@ Goal:
 Paper behavior:
 - CIR maps one input activation row to three MAC lanes for three output rows.
 - D-RIR splits one input row into two sub-rows and maps them to two MAC lanes.
+- The RTL model below preserves the D-RIR two-lane reuse idea with adjacent output-column lanes; it does not claim an ASIC-exact Fig. 4 cycle table.
 
 Tasks:
 - Keep the simple DW Conv target as a baseline reference.
@@ -344,11 +347,13 @@ Tasks:
   - `d_rir`: one output row/kernel term feeds two adjacent output-column lanes.
 - Run the three schedules in the `dw_reuse` wrapper and expose simple/CIR/D-RIR outputs.
 - Track cycle, active-lane, and idle-lane counters for each mode.
+- Emit a per-cycle schedule trace for each mode so tests can catch lane-order regressions, not only aggregate counter regressions.
 
 Verification:
 - Same input/weights through simple, CIR, and D-RIR DW schedules.
 - All three output tensors must match Python golden.
 - Simple/CIR/D-RIR counters must match generated expected stats.
+- Simple/CIR/D-RIR per-cycle traces must match generated schedule traces.
 - CIR and D-RIR cycle counts must be lower than the simple schedule on the generated target.
 
 Acceptance:
@@ -428,7 +433,7 @@ Acceptance:
 | No real weights or data | Cannot reproduce accuracy | Use deterministic toy data for architecture verification |
 | Quantization details are missing | Arithmetic may differ from chip | Start with signed integer arithmetic; make quantization a documented parameter |
 | Sparse packing format is missing | Cannot know exact memory layout | Implement a reasonable vector-wise format matching Fig. 3 behavior |
-| DW reuse schedule is only shown graphically | Exact cycles may differ | Verify output correctness first, then report simulated utilization trends |
+| DW reuse schedule is only shown graphically | Exact cycles may differ | Verify output correctness and project-local per-cycle traces, then report simulated utilization trends |
 | GTKWave has no DISPLAY in this shell | Cannot open GUI from automation | Generate VCD files; user can open them in a graphical terminal |
 
 ## First Executable Milestone

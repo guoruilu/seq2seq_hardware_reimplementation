@@ -5,6 +5,7 @@ Python generators and golden-reference checkers live here.
 Current executable flow:
 
 ```sh
+./sim/run_sim.sh all
 ./sim/run_sim.sh smoke
 ./sim/run_sim.sh mac
 ./sim/run_sim.sh conv
@@ -32,7 +33,7 @@ Current executable flow:
 | `scores.hex`, `thresholds.hex`, `coarse.hex`, `precise.hex`, `expected_path.bin` | `branch` |
 | `indices.hex`, `vector_valid.bin`, `expected_stats.hex` | `sparse` |
 | `vector_valid.bin`, `expected_stats.hex` | `conv_sparse`, `pw_sparse` |
-| `expected_stats.hex` | `dw_reuse` |
+| `expected_stats.hex`, `simple_trace.hex`, `cir_trace.hex`, `drir_trace.hex` | `dw_reuse` |
 
 All files under `sim/build/` are generated and disposable.
 

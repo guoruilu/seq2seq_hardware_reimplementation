@@ -154,7 +154,7 @@ Architecture-level plan:
   - simple uses one output/kernel term lane per cycle;
   - CIR maps one input activation position and one kernel column to `K_H` output-row lanes;
   - D-RIR maps one output row/kernel term to two adjacent output-column lanes.
-- The target verifies that simple, CIR, and D-RIR outputs all match the same dense Python golden output.
+- The target verifies that simple, CIR, and D-RIR outputs all match the same dense Python golden output and that each mode follows a generated per-cycle schedule trace.
 - These schedules are architecture-level and output-equivalent, not an ASIC cycle-accurate claim for Fig. 4.
 
 ## 7. Threshold Adaptation From Fig. 6
@@ -204,7 +204,7 @@ Use this table whenever the implementation needs a detail that is not explicit i
 | Quantization scale / zero point | Not specified | No scale/zero-point in first dense baseline; direct accumulator saturation | Keeps arithmetic verifiable without trained model export |
 | 32-bit instruction encoding | Paper says 32-bit instructions from Instruction SRAM | Define a simulation encoding; use context memory if shapes do not fit cleanly in 32 bits | Must be documented before Phase 4 |
 | Sparse vector packing | Fig. 3 explains vector-wise sparsity behavior, not exact bit packing | Standalone sparse MAC uses vector-major unsigned 16-bit indices, signed 8-bit sparse weights, and one `vector_valid` bit per sparse vector. Normal/PW conv schedules now use generated `vector_valid` masks for all-zero sparse weight vectors: normal conv groups one kernel row per output channel, PW groups three input-channel weights per output channel. Full top-level compressed index/weight streaming remains future work. | Project-local Phase 6 model |
-| DW reuse exact schedule | Fig. 4 illustrates CIR and D-RIR but not a full cycle table | Implement standalone output-equivalent simple/CIR/D-RIR lane-assignment schedules and report simulated utilization trends, not exact ASIC cycle claims | Phase 7 model |
+| DW reuse exact schedule | Fig. 4 illustrates CIR and D-RIR but not a full cycle table | Implement standalone output-equivalent simple/CIR/D-RIR lane-assignment schedules and per-cycle trace checks; report simulated utilization trends, not exact ASIC cycle claims | Phase 7 model |
 | Adaptation intervals | Fig. 6 shows intervals and T-day histogram, but not numeric boundaries | First test uses generated interval boundaries, signed 8-bit score/threshold, 16-bit counters, and integer midpoint truncation | Phase 8 assumption |
 | External sources | References are listed but not yet fetched | If used, record URL, access date, and whether source is primary or secondary before changing implementation assumptions | Required for future research |
 

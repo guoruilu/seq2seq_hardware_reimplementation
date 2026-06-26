@@ -33,7 +33,13 @@ module eg2c_dw_reuse_conv2d #(
     output wire [31:0]                           drir_active_lane_count_o,
     output wire [31:0]                           simple_idle_lane_count_o,
     output wire [31:0]                           cir_idle_lane_count_o,
-    output wire [31:0]                           drir_idle_lane_count_o
+    output wire [31:0]                           drir_idle_lane_count_o,
+    output wire                                  simple_trace_valid_o,
+    output wire                                  cir_trace_valid_o,
+    output wire                                  drir_trace_valid_o,
+    output wire [31:0]                           simple_trace_o,
+    output wire [31:0]                           cir_trace_o,
+    output wire [31:0]                           drir_trace_o
 );
 
     localparam integer MODE_SIMPLE = 0;
@@ -50,9 +56,12 @@ module eg2c_dw_reuse_conv2d #(
     reg simple_done_seen_q;
     reg cir_done_seen_q;
     reg drir_done_seen_q;
-    reg done_reported_q;
+    reg op_active_q;
+    reg start_d_q;
 
-    assign busy_o = simple_busy | cir_busy | drir_busy;
+    wire child_start_pulse = start_i && !start_d_q && !op_active_q;
+
+    assign busy_o = op_active_q;
 
     eg2c_dw_reuse_schedule #(
         .DATA_W(DATA_W),
@@ -69,7 +78,7 @@ module eg2c_dw_reuse_conv2d #(
     ) u_simple_schedule (
         .clk_i(clk_i),
         .rst_ni(rst_ni),
-        .start_i(start_i),
+        .start_i(child_start_pulse),
         .input_act_i(input_act_i),
         .weight_i(weight_i),
         .output_act_o(output_act_o),
@@ -77,7 +86,9 @@ module eg2c_dw_reuse_conv2d #(
         .done_o(simple_done),
         .cycle_count_o(simple_cycle_count_o),
         .active_lane_count_o(simple_active_lane_count_o),
-        .idle_lane_count_o(simple_idle_lane_count_o)
+        .idle_lane_count_o(simple_idle_lane_count_o),
+        .trace_valid_o(simple_trace_valid_o),
+        .trace_o(simple_trace_o)
     );
 
     eg2c_dw_reuse_schedule #(
@@ -95,7 +106,7 @@ module eg2c_dw_reuse_conv2d #(
     ) u_cir_schedule (
         .clk_i(clk_i),
         .rst_ni(rst_ni),
-        .start_i(start_i),
+        .start_i(child_start_pulse),
         .input_act_i(input_act_i),
         .weight_i(weight_i),
         .output_act_o(cir_output_act_o),
@@ -103,7 +114,9 @@ module eg2c_dw_reuse_conv2d #(
         .done_o(cir_done),
         .cycle_count_o(cir_cycle_count_o),
         .active_lane_count_o(cir_active_lane_count_o),
-        .idle_lane_count_o(cir_idle_lane_count_o)
+        .idle_lane_count_o(cir_idle_lane_count_o),
+        .trace_valid_o(cir_trace_valid_o),
+        .trace_o(cir_trace_o)
     );
 
     eg2c_dw_reuse_schedule #(
@@ -121,7 +134,7 @@ module eg2c_dw_reuse_conv2d #(
     ) u_drir_schedule (
         .clk_i(clk_i),
         .rst_ni(rst_ni),
-        .start_i(start_i),
+        .start_i(child_start_pulse),
         .input_act_i(input_act_i),
         .weight_i(weight_i),
         .output_act_o(drir_output_act_o),
@@ -129,7 +142,9 @@ module eg2c_dw_reuse_conv2d #(
         .done_o(drir_done),
         .cycle_count_o(drir_cycle_count_o),
         .active_lane_count_o(drir_active_lane_count_o),
-        .idle_lane_count_o(drir_idle_lane_count_o)
+        .idle_lane_count_o(drir_idle_lane_count_o),
+        .trace_valid_o(drir_trace_valid_o),
+        .trace_o(drir_trace_o)
     );
 
     always @(posedge clk_i or negedge rst_ni) begin
@@ -137,16 +152,18 @@ module eg2c_dw_reuse_conv2d #(
             simple_done_seen_q <= 1'b0;
             cir_done_seen_q    <= 1'b0;
             drir_done_seen_q   <= 1'b0;
-            done_reported_q    <= 1'b0;
+            op_active_q        <= 1'b0;
+            start_d_q          <= 1'b0;
             done_o             <= 1'b0;
         end else begin
+            start_d_q <= start_i;
             done_o <= 1'b0;
 
-            if (start_i) begin
+            if (child_start_pulse) begin
                 simple_done_seen_q <= 1'b0;
                 cir_done_seen_q    <= 1'b0;
                 drir_done_seen_q   <= 1'b0;
-                done_reported_q    <= 1'b0;
+                op_active_q        <= 1'b1;
             end else begin
                 if (simple_done) begin
                     simple_done_seen_q <= 1'b1;
@@ -158,12 +175,12 @@ module eg2c_dw_reuse_conv2d #(
                     drir_done_seen_q <= 1'b1;
                 end
 
-                if (!done_reported_q &&
+                if (op_active_q &&
                     (simple_done_seen_q || simple_done) &&
                     (cir_done_seen_q || cir_done) &&
                     (drir_done_seen_q || drir_done)) begin
-                    done_o          <= 1'b1;
-                    done_reported_q <= 1'b1;
+                    done_o      <= 1'b1;
+                    op_active_q <= 1'b0;
                 end
             end
         end
@@ -194,7 +211,9 @@ module eg2c_dw_reuse_schedule #(
     output reg                                   done_o,
     output reg  [31:0]                           cycle_count_o,
     output reg  [31:0]                           active_lane_count_o,
-    output reg  [31:0]                           idle_lane_count_o
+    output reg  [31:0]                           idle_lane_count_o,
+    output reg                                   trace_valid_o,
+    output reg  [31:0]                           trace_o
 );
 
     localparam integer STATE_IDLE     = 2'd0;
@@ -236,6 +255,7 @@ module eg2c_dw_reuse_schedule #(
     integer output_index;
     integer active_lanes;
     integer idle_lanes;
+    reg [31:0] trace_value;
 
     function signed [DATA_W-1:0] get_act;
         input integer y;
@@ -272,38 +292,127 @@ module eg2c_dw_reuse_schedule #(
         end
     endfunction
 
-    task accumulate_output_term;
+    function [3:0] encode_coord4;
+        input integer value;
+        begin
+            if (value < -8) begin
+                encode_coord4 = 4'h0;
+            end else if (value > 7) begin
+                encode_coord4 = 4'hf;
+            end else begin
+                encode_coord4 = (value + 8) & 4'hf;
+            end
+        end
+    endfunction
+
+    function [3:0] encode_unsigned4;
+        input integer value;
+        begin
+            if (value < 0) begin
+                encode_unsigned4 = 4'hf;
+            end else if (value > 14) begin
+                encode_unsigned4 = 4'he;
+            end else begin
+                encode_unsigned4 = value[3:0];
+            end
+        end
+    endfunction
+
+    function [31:0] make_trace_descriptor;
+        input integer term_lane;
         input integer term_out_y;
         input integer term_out_x;
         input integer term_channel;
         input integer term_ker_y;
         input integer term_ker_x;
+        input term_active;
+        begin
+            make_trace_descriptor = {
+                4'h0,
+                encode_unsigned4(term_lane),
+                encode_coord4(term_out_y),
+                encode_coord4(term_out_x),
+                encode_unsigned4(term_channel),
+                encode_unsigned4(term_ker_y),
+                encode_unsigned4(term_ker_x),
+                3'b000,
+                term_active
+            };
+        end
+    endfunction
+
+    function [31:0] mix_trace_value;
+        input [31:0] current_value;
+        input [31:0] descriptor;
+        begin
+            mix_trace_value = {current_value[26:0], current_value[31:27]} ^ descriptor;
+        end
+    endfunction
+
+    task update_trace;
+        input integer term_lane;
+        input integer term_out_y;
+        input integer term_out_x;
+        input integer term_channel;
+        input integer term_ker_y;
+        input integer term_ker_x;
+        input term_active;
+        begin
+            trace_value = mix_trace_value(
+                trace_value,
+                make_trace_descriptor(
+                    term_lane,
+                    term_out_y,
+                    term_out_x,
+                    term_channel,
+                    term_ker_y,
+                    term_ker_x,
+                    term_active
+                )
+            );
+        end
+    endtask
+
+    task accumulate_output_term;
+        input integer term_lane;
+        input integer term_out_y;
+        input integer term_out_x;
+        input integer term_channel;
+        input integer term_ker_y;
+        input integer term_ker_x;
+        integer local_in_y;
+        integer local_in_x;
+        integer local_output_index;
         reg signed [DATA_W-1:0] act_value;
         reg signed [WEIGHT_W-1:0] weight_value;
         reg signed [PRODUCT_W-1:0] product_value;
         reg signed [ACC_W-1:0] product_ext;
+        reg lane_active;
         begin
+            lane_active = 1'b0;
             if (term_out_y >= 0 && term_out_y < IN_H &&
                 term_out_x >= 0 && term_out_x < IN_W &&
                 term_channel >= 0 && term_channel < CHANNELS &&
                 term_ker_y >= 0 && term_ker_y < K_H &&
                 term_ker_x >= 0 && term_ker_x < K_W) begin
-                in_y = term_out_y + term_ker_y - PAD_H;
-                in_x = term_out_x + term_ker_x - PAD_W;
-                if (in_y >= 0 && in_y < IN_H && in_x >= 0 && in_x < IN_W) begin
+                local_in_y = term_out_y + term_ker_y - PAD_H;
+                local_in_x = term_out_x + term_ker_x - PAD_W;
+                if (local_in_y >= 0 && local_in_y < IN_H && local_in_x >= 0 && local_in_x < IN_W) begin
+                    lane_active = 1'b1;
                     active_lanes = active_lanes + 1;
-                    output_index = (term_out_y * IN_W + term_out_x) * CHANNELS + term_channel;
-                    act_value = get_act(in_y, in_x, term_channel);
+                    local_output_index = (term_out_y * IN_W + term_out_x) * CHANNELS + term_channel;
+                    act_value = get_act(local_in_y, local_in_x, term_channel);
                     weight_value = get_weight(term_ker_y, term_ker_x, term_channel);
                     product_value = act_value * weight_value;
                     product_ext = {{(ACC_W-PRODUCT_W){product_value[PRODUCT_W-1]}}, product_value};
-                    accum_mem[output_index] = accum_mem[output_index] + product_ext;
+                    accum_mem[local_output_index] = accum_mem[local_output_index] + product_ext;
                 end else begin
                     idle_lanes = idle_lanes + 1;
                 end
             end else begin
                 idle_lanes = idle_lanes + 1;
             end
+            update_trace(term_lane, term_out_y, term_out_x, term_channel, term_ker_y, term_ker_x, lane_active);
         end
     endtask
 
@@ -332,6 +441,8 @@ module eg2c_dw_reuse_schedule #(
             cycle_count_o       <= 32'd0;
             active_lane_count_o <= 32'd0;
             idle_lane_count_o   <= 32'd0;
+            trace_valid_o       <= 1'b0;
+            trace_o             <= 32'd0;
             for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
                 accum_mem[idx] <= {ACC_W{1'b0}};
             end
@@ -341,12 +452,14 @@ module eg2c_dw_reuse_schedule #(
             case (state_q)
                 STATE_IDLE: begin
                     busy_o <= 1'b0;
+                    trace_valid_o <= 1'b0;
                     if (start_i) begin
                         cycle_index_q       <= 0;
                         output_act_o        <= {(OUTPUT_COUNT*DATA_W){1'b0}};
                         cycle_count_o       <= 32'd0;
                         active_lane_count_o <= 32'd0;
                         idle_lane_count_o   <= 32'd0;
+                        trace_o             <= 32'd0;
                         for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
                             accum_mem[idx] <= {ACC_W{1'b0}};
                         end
@@ -358,6 +471,7 @@ module eg2c_dw_reuse_schedule #(
                 STATE_CALC: begin
                     active_lanes = 0;
                     idle_lanes = 0;
+                    trace_value = 32'h9e3779b9 ^ cycle_index_q[31:0];
 
                     if (MODE == MODE_SIMPLE) begin
                         tmp_idx = cycle_index_q;
@@ -370,7 +484,7 @@ module eg2c_dw_reuse_schedule #(
                         out_x = tmp_idx % IN_W;
                         tmp_idx = tmp_idx / IN_W;
                         out_y = tmp_idx;
-                        accumulate_output_term(out_y, out_x, channel, ker_y, ker_x);
+                        accumulate_output_term(0, out_y, out_x, channel, ker_y, ker_x);
                     end else if (MODE == MODE_CIR) begin
                         tmp_idx = cycle_index_q;
                         ker_x = tmp_idx % K_W;
@@ -384,7 +498,7 @@ module eg2c_dw_reuse_schedule #(
                             ker_y = lane_idx;
                             out_y = in_y - ker_y + PAD_H;
                             out_x = in_x - ker_x + PAD_W;
-                            accumulate_output_term(out_y, out_x, channel, ker_y, ker_x);
+                            accumulate_output_term(lane_idx, out_y, out_x, channel, ker_y, ker_x);
                         end
                     end else begin
                         tmp_idx = cycle_index_q;
@@ -399,13 +513,15 @@ module eg2c_dw_reuse_schedule #(
                         out_y = tmp_idx;
                         for (lane_idx = 0; lane_idx < 2; lane_idx = lane_idx + 1) begin
                             out_x = pair_idx * 2 + lane_idx;
-                            accumulate_output_term(out_y, out_x, channel, ker_y, ker_x);
+                            accumulate_output_term(lane_idx, out_y, out_x, channel, ker_y, ker_x);
                         end
                     end
 
                     cycle_count_o       <= cycle_count_o + 32'd1;
                     active_lane_count_o <= active_lane_count_o + active_lanes[31:0];
                     idle_lane_count_o   <= idle_lane_count_o + idle_lanes[31:0];
+                    trace_valid_o       <= 1'b1;
+                    trace_o             <= trace_value;
 
                     if (cycle_index_q == SELECTED_CYCLES - 1) begin
                         state_q <= STATE_FINALIZE;
@@ -415,6 +531,7 @@ module eg2c_dw_reuse_schedule #(
                 end
 
                 STATE_FINALIZE: begin
+                    trace_valid_o <= 1'b0;
                     for (idx = 0; idx < OUTPUT_COUNT; idx = idx + 1) begin
                         output_act_o[idx*DATA_W +: DATA_W] <= saturate_int8(accum_mem[idx]);
                     end
@@ -424,8 +541,9 @@ module eg2c_dw_reuse_schedule #(
                 end
 
                 default: begin
-                    state_q <= STATE_IDLE;
-                    busy_o  <= 1'b0;
+                    state_q       <= STATE_IDLE;
+                    busy_o        <= 1'b0;
+                    trace_valid_o <= 1'b0;
                 end
             endcase
         end

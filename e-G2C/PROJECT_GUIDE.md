@@ -133,7 +133,7 @@ Each stage gets a small test before integration:
 | Sparse PW Conv | Python golden for dense-equivalent output plus active/skip counters |
 | Sparse selector | compressed vector result equals dense result |
 | Adaptation engine | histogram, ignored out-of-range samples, argmin, threshold update, held-start behavior, update/sample coincidence, saturation, and restart behavior match Python golden/test expectations |
-| Top pipeline | detector chooses coarse/precise converter path, optional adaptation updates threshold state, and converter/error status matches Python golden expectations |
+| Top pipeline | detector chooses coarse/precise converter path, optional adaptation updates threshold state, held-start does not restart, and converter/error status matches Python golden expectations |
 
 The pass condition is always printed by the testbench as a mismatch count.
 

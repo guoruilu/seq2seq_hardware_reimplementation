@@ -136,7 +136,7 @@ Architecture-level plan:
 - Sparse vector mode has been implemented in two architecture-level steps:
   - standalone selector/MAC target using explicit sparse indices and vector-valid bits;
   - normal-conv and point-wise-conv schedules that skip all-zero sparse weight vectors and report active/skip counters.
-- Future top-level integration should connect compressed weight/index streams through the activation buffer path rather than only using generated vector-valid masks.
+- Future sparse integration into `eg2c_integrated_top` should connect compressed weight/index streams through the activation buffer path rather than only using generated vector-valid masks.
 
 ## 6. Depth-Wise Conv Reuse From Fig. 4
 

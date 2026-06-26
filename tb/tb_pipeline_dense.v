@@ -12,7 +12,7 @@ module tb_pipeline_dense;
     localparam integer POOL_OUT_H = 2;
     localparam integer POOL_OUT_W = 2;
     localparam integer INSTR_COUNT = 4;
-    localparam integer CASE_COUNT = 4;
+    localparam integer CASE_COUNT = 5;
     localparam integer STATUS_COUNT = 3;
     localparam integer DATA_W = `EG2C_DATA_W;
     localparam integer WEIGHT_W = `EG2C_WEIGHT_W;

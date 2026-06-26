@@ -12,7 +12,7 @@ module tb_top;
     localparam integer POOL_OUT_H = 2;
     localparam integer POOL_OUT_W = 2;
     localparam integer INSTR_COUNT = 4;
-    localparam integer CASE_COUNT = 3;
+    localparam integer CASE_COUNT = 5;
     localparam integer STATUS_COUNT = 10;
     localparam integer ADAPT_INTERVAL_COUNT = 8;
     localparam integer ADAPT_COUNTER_W = 16;
@@ -187,7 +187,13 @@ module tb_top;
         end
 
         for (case_idx = 0; case_idx < CASE_COUNT; case_idx = case_idx + 1) begin
-            run_case(case_idx);
+            if (case_idx == 0) begin
+                run_case(case_idx, 1'b1, 1'b1);
+            end else if (case_idx == 2) begin
+                run_case(case_idx, 1'b0, 1'b0);
+            end else begin
+                run_case(case_idx, 1'b1, 1'b0);
+            end
         end
 
         if (mismatches == 0) begin
@@ -263,6 +269,8 @@ module tb_top;
 
     task run_case;
         input integer case_id;
+        input do_reset;
+        input hold_start;
         begin
             for (idx = 0; idx < INSTR_COUNT; idx = idx + 1) begin
                 coarse_instr_flat[idx*INSTR_W +: INSTR_W] = coarse_instr_mem[case_id*INSTR_COUNT + idx];
@@ -271,6 +279,9 @@ module tb_top;
             for (idx = 0; idx < ADAPT_SCORE_MAX; idx = idx + 1) begin
                 adapt_scores_flat[idx*DATA_W +: DATA_W] = adapt_score_mem[case_id*ADAPT_SCORE_MAX + idx];
             end
+            for (idx = 0; idx < ADAPT_INTERVAL_COUNT + 1; idx = idx + 1) begin
+                adapt_bounds_flat[idx*DATA_W +: DATA_W] = adapt_bound_mem[idx];
+            end
 
             score = score_mem[case_id];
             threshold = threshold_mem[case_id];
@@ -278,15 +289,48 @@ module tb_top;
             adapt_score_count = adapt_length_mem[case_id];
             adapt_initial_threshold = adapt_initial_threshold_mem[case_id];
 
-            rst_n = 1'b0;
-            start = 1'b0;
-            repeat (3) @(negedge clk);
-            rst_n = 1'b1;
+            if (do_reset) begin
+                rst_n = 1'b0;
+                start = 1'b0;
+                repeat (3) @(negedge clk);
+                rst_n = 1'b1;
+            end else begin
+                rst_n = 1'b1;
+                start = 1'b0;
+                @(negedge clk);
+            end
+
+            #1;
+            if (busy !== 1'b0) begin
+                $display("ERROR: case %0d busy before start got=%0b expected=0", case_id, busy);
+                mismatches = mismatches + 1;
+            end
+            if (done !== 1'b0) begin
+                $display("ERROR: case %0d done before start got=%0b expected=0", case_id, done);
+                mismatches = mismatches + 1;
+            end
 
             @(negedge clk);
             start = 1'b1;
-            @(negedge clk);
-            start = 1'b0;
+            @(posedge clk);
+            #1;
+            if (busy !== 1'b1) begin
+                $display("ERROR: case %0d busy after accepted start got=%0b expected=1", case_id, busy);
+                mismatches = mismatches + 1;
+            end
+
+            if (case_id == 1) begin
+                adapt_enable = 1'b0;
+                adapt_score_count = 32'd0;
+                adapt_initial_threshold = 8'h55;
+                adapt_bounds_flat = '0;
+                adapt_scores_flat = '0;
+            end
+
+            if (!hold_start) begin
+                @(negedge clk);
+                start = 1'b0;
+            end
 
             cycles_waited = 0;
             while (done !== 1'b1 && cycles_waited < 2500) begin
@@ -378,6 +422,21 @@ module tb_top;
                              case_id, interval_idx, got_hist, expected_hist);
                     mismatches = mismatches + 1;
                 end
+            end
+
+            @(posedge clk);
+            #1;
+            if (done !== 1'b0) begin
+                $display("ERROR: case %0d done did not clear after one cycle", case_id);
+                mismatches = mismatches + 1;
+            end
+            if (busy !== 1'b0) begin
+                $display("ERROR: case %0d busy after done got=%0b expected=0", case_id, busy);
+                mismatches = mismatches + 1;
+            end
+            if (hold_start) begin
+                @(negedge clk);
+                start = 1'b0;
             end
         end
     endtask

@@ -36,14 +36,17 @@ Standard files:
 | `indices.hex` | Python generator | testbench index memory loader | one unsigned index word per line; width documented per target |
 | `instr.hex` | Python generator | instruction SRAM loader | one 32-bit instruction per line, big-endian human-readable hex |
 | `ctx.hex` | Python generator | optional context memory loader | one context word per line; width documented in the target README/header |
-| `scores.hex` / `thresholds.hex` | Python generator | branch testbench | signed 8-bit detector score and threshold values |
+| `scores.hex` / `thresholds.hex` | Python generator | branch and top testbenches | signed 8-bit detector score and threshold values |
 | `scores.hex` / `boundaries.hex` / `initial_thresholds.hex` | Python generator | adaptation testbench | signed 8-bit detector scores, interval boundaries, and per-window initial thresholds |
 | `case_lengths.hex` | Python generator | adaptation testbench | one 32-bit score-window length per adaptation case |
 | `coarse.hex` / `precise.hex` | Python generator | branch testbench | one signed 8-bit output vector entry per line for coarse and precise candidate paths |
+| `coarse_weights.hex` / `precise_weights.hex` | Python generator | top testbench | one signed 8-bit converter weight per line for the top coarse and precise paths |
+| `coarse_instr.hex` / `precise_instr.hex` | Python generator | top testbench | one 32-bit instruction per line for the top coarse and precise converter paths |
+| `adapt_enable.bin` / `adapt_lengths.hex` / `adapt_initial_thresholds.hex` / `adapt_scores.hex` | Python generator | top testbench | per-case adaptation enable bit, requested score count, initial threshold, and padded score window |
 | `expected_path.bin` | Python generator | branch testbench | one binary path bit per branch case; `1` means precise/abnormal |
 | `vector_valid.bin` | Python generator | sparse schedule testbenches | one binary validity bit per sparse vector |
-| `expected_status.hex` | Python generator | `pipeline_dense` testbench | repeated per case: `expected_error`, `expected_ops`, `expected_cycles` |
-| `expected_histogram.hex` | Python generator | adaptation testbench | repeated per adaptation case: one 32-bit expected counter value per interval |
+| `expected_status.hex` | Python generator | `pipeline_dense` and top testbenches | `pipeline_dense`: repeated per case as `expected_error`, `expected_ops`, `expected_cycles`; top: repeated per case as `expected_error`, `expected_path_precise`, `expected_converter_ops`, `expected_converter_cycles`, `expected_sparse_skipped`, `expected_adapt_done`, `expected_threshold_out`, `expected_adapt_total_samples`, `expected_adapt_ignored_samples`, `expected_adapt_selected_interval` |
+| `expected_histogram.hex` | Python generator | adaptation and top testbenches | repeated per case: one 32-bit expected counter value per interval |
 | `expected_stats.hex` | Python generator | sparse, adaptation, and schedule-counter testbenches | sparse MAC order: `dense_accumulator`, `active_sparse_cycles`, `skipped_vectors`, `dense_equivalent_cycles`, `total_sparse_cycles`; sparse conv/PW order: `dense_equivalent_cycles`, `active_sparse_cycles`, `skipped_vectors`, `total_sparse_cycles`; DW reuse order: `simple_cycles`, `cir_cycles`, `drir_cycles`, `simple_active_slots`, `cir_active_slots`, `drir_active_slots`, `simple_idle_slots`, `cir_idle_slots`, `drir_idle_slots`; adaptation order per case: `updated_threshold`, `selected_interval`, `accepted_samples`, `ignored_samples`, `total_samples` |
 | `target.json` | Python generator | Python golden, RTL testbench documentation | target shape/layout/padding/stride/arithmetic assumptions |
 | `adapt_target.json` | Python generator | adaptation golden and testbench documentation | threshold interval boundaries, score format, counter width, update window |
@@ -264,7 +267,8 @@ Tasks:
   - `DONE` only;
   - `NOP -> CONV -> POOL -> DONE`;
   - illegal opcode/error.
-- Keep detector/coarse/precise top-level sequencing for later `top` integration work.
+  - `POOL -> DONE` error, because pooling before a current-transaction convolution would otherwise consume stale output.
+- Leave detector/coarse/precise top-level sequencing to the Phase 9 `top` integration target.
 
 Verification:
 - Python script generates:
@@ -411,11 +415,14 @@ Implemented scope:
   - `eg2c_detector_branch` for signed score-vs-threshold path selection;
   - one coarse and one precise `eg2c_dense_pipeline`, with only the selected path started;
   - `eg2c_adapt_engine` for an optional co-running threshold update for future windows.
-- `tb/tb_top.v` runs three generated cases:
+- `tb/tb_top.v` runs five generated cases:
   - normal/coarse path;
   - abnormal/precise path with threshold adaptation;
-  - abnormal/precise path with an illegal converter opcode.
+  - abnormal/precise path with an illegal converter opcode after a previous precise transaction without reset;
+  - normal/coarse path with an illegal converter opcode;
+  - invalid adaptation length rejected before converter launch.
 - `scripts/golden_eg2c.py top` writes all memory/control images and expected status files under `sim/build/top/`.
+- The top accepts `start_i` only on a rising edge while idle, locks adaptation control/window inputs at transaction start, clears per-transaction adaptation status on new starts, and forces selected output to zero on converter errors.
 - The top target prints:
   - selected path;
   - cycle count;

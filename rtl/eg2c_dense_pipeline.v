@@ -21,7 +21,7 @@ module eg2c_dense_pipeline #(
     input  wire [INSTR_COUNT*INSTR_W-1:0]                      instr_mem_i,
     input  wire [IN_H*IN_W*IN_C*DATA_W-1:0]                    input_act_i,
     input  wire [3*3*IN_C*CONV_OUT_C*WEIGHT_W-1:0]             conv_weight_i,
-    output wire [POOL_OUT_H*POOL_OUT_W*CONV_OUT_C*DATA_W-1:0]  output_act_o,
+    output reg  [POOL_OUT_H*POOL_OUT_W*CONV_OUT_C*DATA_W-1:0]  output_act_o,
     output reg                                                 busy_o,
     output reg                                                 done_o,
     output reg                                                 error_o,
@@ -41,6 +41,7 @@ module eg2c_dense_pipeline #(
     reg [INSTR_W-1:0] instr_q;
     reg conv_start_q;
     reg pool_start_q;
+    reg conv_output_valid_q;
 
     wire [7:0] opcode;
     wire conv_busy;
@@ -52,11 +53,21 @@ module eg2c_dense_pipeline #(
     wire pool_done;
     wire [31:0] pool_cycle_count;
     wire [IN_H*IN_W*CONV_OUT_C*DATA_W-1:0] conv_output;
+    wire [POOL_OUT_H*POOL_OUT_W*CONV_OUT_C*DATA_W-1:0] pool_output;
     localparam integer CONV_SPARSE_VEC_LEN = 3 * IN_C;
     localparam integer CONV_SPARSE_VEC_COUNT = (3 * 3 * IN_C + CONV_SPARSE_VEC_LEN - 1) / CONV_SPARSE_VEC_LEN;
     localparam integer CONV_SPARSE_VALID_COUNT = CONV_OUT_C * CONV_SPARSE_VEC_COUNT;
 
     assign opcode = instr_q[31:24];
+
+    initial begin
+        if (INSTR_W < 32) begin
+            $fatal(1, "eg2c_dense_pipeline INSTR_W must be at least 32 for the opcode field");
+        end
+        if (INSTR_COUNT < 1 || INSTR_COUNT > 255) begin
+            $fatal(1, "eg2c_dense_pipeline INSTR_COUNT must fit the 8-bit op_count_o coverage model");
+        end
+    end
 
     function [INSTR_W-1:0] get_instr;
         input integer pc;
@@ -107,7 +118,7 @@ module eg2c_dense_pipeline #(
         .rst_ni(rst_ni),
         .start_i(pool_start_q),
         .input_act_i(conv_output),
-        .output_act_o(output_act_o),
+        .output_act_o(pool_output),
         .busy_o(pool_busy),
         .done_o(pool_done),
         .cycle_count_o(pool_cycle_count)
@@ -120,6 +131,8 @@ module eg2c_dense_pipeline #(
             instr_q       <= {INSTR_W{1'b0}};
             conv_start_q  <= 1'b0;
             pool_start_q  <= 1'b0;
+            conv_output_valid_q <= 1'b0;
+            output_act_o  <= {(POOL_OUT_H*POOL_OUT_W*CONV_OUT_C*DATA_W){1'b0}};
             busy_o        <= 1'b0;
             done_o        <= 1'b0;
             error_o       <= 1'b0;
@@ -136,6 +149,8 @@ module eg2c_dense_pipeline #(
                     if (start_i) begin
                         pc_q          <= 0;
                         instr_q       <= {INSTR_W{1'b0}};
+                        conv_output_valid_q <= 1'b0;
+                        output_act_o  <= {(POOL_OUT_H*POOL_OUT_W*CONV_OUT_C*DATA_W){1'b0}};
                         cycle_count_o <= 32'd0;
                         op_count_o    <= 8'd0;
                         error_o       <= 1'b0;
@@ -156,11 +171,17 @@ module eg2c_dense_pipeline #(
 
                 STATE_DECODE: begin
                     if (opcode == `EG2C_OP_CONV) begin
-                        conv_start_q <= 1'b1;
-                        state_q      <= STATE_WAIT_CONV;
+                        conv_start_q        <= 1'b1;
+                        conv_output_valid_q <= 1'b0;
+                        state_q             <= STATE_WAIT_CONV;
                     end else if (opcode == `EG2C_OP_POOL) begin
-                        pool_start_q <= 1'b1;
-                        state_q      <= STATE_WAIT_POOL;
+                        if (conv_output_valid_q) begin
+                            pool_start_q <= 1'b1;
+                            state_q      <= STATE_WAIT_POOL;
+                        end else begin
+                            error_o <= 1'b1;
+                            state_q <= STATE_DONE;
+                        end
                     end else if (opcode == `EG2C_OP_DONE) begin
                         state_q <= STATE_DONE;
                     end else if (opcode == `EG2C_OP_NOP) begin
@@ -176,6 +197,7 @@ module eg2c_dense_pipeline #(
                     if (conv_done) begin
                         cycle_count_o <= cycle_count_o + conv_cycle_count;
                         op_count_o    <= op_count_o + 8'd1;
+                        conv_output_valid_q <= 1'b1;
                         pc_q          <= pc_q + 1;
                         state_q       <= STATE_FETCH;
                     end
@@ -185,6 +207,7 @@ module eg2c_dense_pipeline #(
                     if (pool_done) begin
                         cycle_count_o <= cycle_count_o + pool_cycle_count;
                         op_count_o    <= op_count_o + 8'd1;
+                        output_act_o   <= pool_output;
                         pc_q          <= pc_q + 1;
                         state_q       <= STATE_FETCH;
                     end

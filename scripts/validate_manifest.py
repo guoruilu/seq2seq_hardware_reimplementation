@@ -36,13 +36,11 @@ def main() -> None:
 
     for path in args.build_dir.iterdir():
         allowed_sim_outputs = {"sim.vvp", "wave.vcd"}
-        if (
-            path.is_file()
-            and path.name not in manifest["files"]
-            and path.name != "manifest.json"
-            and path.name not in allowed_sim_outputs
-        ):
-            errors.append(f"{path.name}: extra generated file before simulation")
+        if path.name in manifest["files"] or path.name == "manifest.json":
+            continue
+        if path.is_file() and path.name in allowed_sim_outputs:
+            continue
+        errors.append(f"{path.name}: extra generated path before simulation")
 
     if errors:
         for error in errors:

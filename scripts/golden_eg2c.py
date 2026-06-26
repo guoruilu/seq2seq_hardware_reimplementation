@@ -708,6 +708,14 @@ def gen_pipeline_dense(build_dir: Path) -> None:
             "expected_ops": 0,
             "expected_cycles": 0,
         },
+        {
+            "name": "pool_before_conv",
+            "program": [0x04000000, 0xFF000000, 0x00000000, 0x00000000],
+            "expected_output": zero_output,
+            "expected_error": 1,
+            "expected_ops": 0,
+            "expected_cycles": 0,
+        },
     ]
     instr = [word for case in programs for word in case["program"]]
     expected = [value for case in programs for value in case["expected_output"]]
@@ -1031,6 +1039,29 @@ def gen_top(build_dir: Path) -> None:
             "precise_program": illegal_program,
             "expected_error": 1,
         },
+        {
+            "name": "coarse_path_illegal_opcode",
+            "score": -3,
+            "threshold": 20,
+            "adapt_enable": 0,
+            "adapt_initial_threshold": 20,
+            "adapt_scores": [],
+            "coarse_program": illegal_program,
+            "precise_program": normal_program,
+            "expected_error": 1,
+        },
+        {
+            "name": "invalid_adaptation_length",
+            "score": 4,
+            "threshold": 20,
+            "adapt_enable": 1,
+            "adapt_initial_threshold": -9,
+            "adapt_scores": [-64, -48, -32, -16, 0, 16, 32, 48],
+            "adapt_length": adapt_score_max + 1,
+            "coarse_program": normal_program,
+            "precise_program": normal_program,
+            "expected_error": 1,
+        },
     ]
 
     coarse_instr: list[int] = []
@@ -1043,6 +1074,8 @@ def gen_top(build_dir: Path) -> None:
 
     for case_idx, case in enumerate(cases):
         expected_path = int(case["score"] >= case["threshold"])
+        adapt_length = case.get("adapt_length", len(case["adapt_scores"]))
+        adapt_length_valid = (not case["adapt_enable"]) or (adapt_length <= adapt_score_max)
         coarse_instr.extend(case["coarse_program"])
         precise_instr.extend(case["precise_program"])
 
@@ -1058,7 +1091,7 @@ def gen_top(build_dir: Path) -> None:
         selected_interval = 0
         threshold_out = case["threshold"]
         adapt_done = 0
-        if case["adapt_enable"]:
+        if case["adapt_enable"] and adapt_length_valid:
             adapt_done = 1
             for score in case["adapt_scores"]:
                 interval = _adapt_interval_for_score(score, boundaries)
@@ -1070,7 +1103,8 @@ def gen_top(build_dir: Path) -> None:
             selected_interval = next(idx for idx, count in enumerate(histogram) if count == min(histogram))
             threshold_out = _adapt_midpoint(boundaries[selected_interval], boundaries[selected_interval + 1])
 
-        if case["expected_error"]:
+        expected_error = int(case["expected_error"] or not adapt_length_valid)
+        if expected_error:
             expected_output = zero_output
             expected_ops = 0
             expected_cycles = 0
@@ -1087,7 +1121,7 @@ def gen_top(build_dir: Path) -> None:
         expected_histogram.extend(histogram)
         expected_status.extend(
             [
-                case["expected_error"],
+                expected_error,
                 expected_path,
                 expected_ops,
                 expected_cycles,
@@ -1107,12 +1141,12 @@ def gen_top(build_dir: Path) -> None:
                 "threshold": case["threshold"],
                 "expected_path": "precise" if expected_path else "coarse",
                 "adapt_enable": bool(case["adapt_enable"]),
-                "adapt_score_count": len(case["adapt_scores"]),
+                "adapt_score_count": adapt_length,
                 "adapt_accepted_samples": accepted,
                 "adapt_ignored_samples": ignored,
                 "adapt_selected_interval": selected_interval,
                 "threshold_out": threshold_out,
-                "expected_error": case["expected_error"],
+                "expected_error": expected_error,
                 "expected_ops": expected_ops,
                 "expected_converter_cycles": expected_cycles,
                 "expected_sparse_skipped": 0,
@@ -1132,7 +1166,7 @@ def gen_top(build_dir: Path) -> None:
         "".join(f"{case['adapt_enable']:b}\n" for case in cases),
         encoding="ascii",
     )
-    write_hex32(build_dir / "adapt_lengths.hex", [len(case["adapt_scores"]) for case in cases])
+    write_hex32(build_dir / "adapt_lengths.hex", [case.get("adapt_length", len(case["adapt_scores"])) for case in cases])
     write_hex(build_dir / "adapt_scores.hex", flat_adapt_scores)
     write_hex(build_dir / "boundaries.hex", boundaries)
     write_hex(build_dir / "expected.hex", expected)

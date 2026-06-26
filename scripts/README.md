@@ -35,7 +35,7 @@ Current executable flow:
 | `instr.hex`, `expected_status.hex` | `pipeline_dense` |
 | `scores.hex`, `thresholds.hex`, `coarse.hex`, `precise.hex`, `expected_path.bin` | `branch` |
 | `scores.hex`, `boundaries.hex`, `initial_thresholds.hex`, `case_lengths.hex`, `expected_histogram.hex`, `expected_stats.hex` | `adapt` |
-| `coarse_weights.hex`, `precise_weights.hex`, `coarse_instr.hex`, `precise_instr.hex`, `adapt_enable.bin`, `adapt_lengths.hex`, `adapt_initial_thresholds.hex`, `adapt_scores.hex`, `boundaries.hex`, `expected_status.hex`, `expected_histogram.hex` | `top` |
+| `scores.hex`, `thresholds.hex`, `coarse_weights.hex`, `precise_weights.hex`, `coarse_instr.hex`, `precise_instr.hex`, `adapt_enable.bin`, `adapt_lengths.hex`, `adapt_initial_thresholds.hex`, `adapt_scores.hex`, `boundaries.hex`, `expected_status.hex`, `expected_histogram.hex` | `top` |
 | `indices.hex`, `vector_valid.bin`, `expected_stats.hex` | `sparse` |
 | `vector_valid.bin`, `expected_stats.hex` | `conv_sparse`, `pw_sparse` |
 | `expected_stats.hex`, `simple_trace.hex`, `cir_trace.hex`, `drir_trace.hex` | `dw_reuse` |

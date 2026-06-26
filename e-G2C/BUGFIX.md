@@ -138,3 +138,29 @@ Prevention:
 - Every control-oriented testbench should use case equality for one-bit status checks.
 - Every start/done handshake should include held-start or repeated-start stress.
 - Counter modules should document and test overflow behavior before integration.
+
+## #008 -- Integrated top used ambiguous transaction inputs
+
+Symptoms:
+- Independent RTL/test review found that `eg2c_integrated_top` accepted level-sensitive `start_i`, so a held start could relaunch immediately after `done_o`.
+- The top used live `adapt_enable_i` and `adapt_score_count_i` during RUN, so host-side input changes could stop score feeding and leave the adaptation child mid-transaction.
+- Converter error paths could expose stale child output from a previous transaction.
+- `eg2c_dense_pipeline` allowed `POOL` before any current-transaction `CONV`, which could consume stale convolution output.
+
+Root cause:
+- The first top integration treated control inputs as stable levels rather than start-latched transaction fields.
+- Top outputs forwarded child state without a per-transaction validity/reset policy.
+- The dense pipeline did not track whether its current transaction had produced a valid convolution result before pooling.
+
+Fix:
+- Added rising-edge start acceptance in `eg2c_integrated_top`.
+- Latched adaptation enable/count/window inputs at transaction start.
+- Registered top adaptation outputs per transaction and cleared them on new starts.
+- Forced selected top output to zero on converter errors.
+- Added held-start, no-reset stale-output, precise/coarse illegal-opcode, invalid-adaptation-length, and mutated-live-adaptation-input coverage to `tb_top`.
+- Added a current-transaction `conv_output_valid` guard to `eg2c_dense_pipeline` and a generated `pool_before_conv` error case.
+
+Prevention:
+- Top-level wrappers should latch transaction control fields at start rather than sampling live host inputs during RUN.
+- Error-path tests should run at least one case without reset after a successful case to catch stale outputs.
+- Instruction-driven tests should include dependency-order errors, not only illegal opcodes.

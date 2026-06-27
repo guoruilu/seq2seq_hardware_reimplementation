@@ -6,9 +6,16 @@ Audience:
 
 This document explains what this repository implements, how the hardware blocks fit together, and how the simulation flow proves that the RTL behaves as intended.
 
+Read this file first for the mental model. Then use:
+- `e-G2C/PROJECT_GUIDE.md` for the module and command map;
+- `e-G2C/IMPLEMENTATION_PLAN.md` for generated artifact contracts, milestone scope, assumptions, and acceptance criteria;
+- `e-G2C/PAPER_NOTES.md` for paper facts and implementation assumptions.
+
 ## 1. The Short Version
 
 e-G2C is a neural-network processor architecture for a pacemaker monitoring workload.
+
+In this project, EGM is the pacemaker-sensed input signal, and ECG is the reconstructed or converted output signal.
 
 The paper-level idea is:
 
@@ -24,6 +31,8 @@ small detector decides normal or abnormal
 
 over time: detector scores update the threshold used by the detector branch
 ```
+
+Current RTL note: the integrated top does not implement the detector CNN itself. It receives a detector score as `score_i`, compares that score with `threshold_i`, and then chooses the coarse or precise converter path.
 
 This repository does not reproduce the full medical model, real trained weights, ASIC layout, area, or power. It builds a deterministic, simulation-friendly Verilog model that exercises the same kinds of architectural blocks:
 - memories;
@@ -80,7 +89,7 @@ Current numeric rules:
 - activations: signed 8-bit two's-complement;
 - weights: signed 8-bit two's-complement;
 - accumulators: signed 32-bit;
-- final layer outputs: signed 8-bit with saturation to `[-128, 127]`;
+- layer output activations in the current models: signed 8-bit with saturation to `[-128, 127]`;
 - addresses: word addresses, not byte addresses.
 
 The common activation layout is `NHWC` without the batch dimension in the toy tests:
@@ -294,6 +303,8 @@ Current limitation:
 ## 11. Depth-Wise Reuse
 
 Depth-wise convolution is different from normal convolution because each channel is processed independently. The paper proposes reuse patterns called CIR and D-RIR.
+
+CIR means column-wise intra-channel reuse. D-RIR means deeper row-wise intra-channel reuse. In this project, both are lane/schedule optimization models; they do not change the mathematical convolution result.
 
 This repository verifies a standalone schedule model in:
 

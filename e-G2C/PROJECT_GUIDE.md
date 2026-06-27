@@ -6,6 +6,8 @@
 
 We are building a simulation-friendly Verilog model of the e-G2C processor.
 
+If you are new to neural-network accelerators, read `e-G2C/BEGINNER_EXPLANATION.md` first. It explains this project using SPI/FSM-style hardware concepts before diving into the module list.
+
 The processor has two jobs:
 1. Detect whether an EGM heartbeat is normal or abnormal.
 2. Convert EGM signals into ECG signals using either a cheap coarse converter or a more expensive precise converter.
